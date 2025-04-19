@@ -11,6 +11,7 @@ import ghidra.app.util.importer.MessageLog;
 import ghidra.program.database.function.OverlappingFunctionException;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.data.ArrayDataType;
+import ghidra.program.model.data.ByteDataType;
 import ghidra.program.model.data.Pointer64DataType;
 import ghidra.program.model.data.WideChar16DataType;
 import ghidra.program.model.listing.Program;
@@ -60,14 +61,20 @@ public class MethodTableCrawler {
         log.appendMsg(Constants.TAG, String.format("Found %d method tables", _manager.getMethodTableCount()));
 
         // Annotate some special method tables.
-        assignSystemObjectNames(_manager.getObjectMT(), log);
+        assignSystemObjectNames(_manager.getObjectMT());
 
         if (_manager.getStringMT() == null) {
             var stringMT = findSystemStringMT(monitor, log);
             if (stringMT != null) {
                 log.appendMsg(Constants.TAG, String.format("Assuming %s is System.String", stringMT.getAddress()));
-                assignSystemStringNames(stringMT, log);
+                assignSystemStringNames(stringMT);
                 _manager.setStringMT(stringMT);
+            }
+        }
+
+        for (var mt : _manager.getMethodTables()) {
+            if (mt.isSzArray()) {
+                assignSzArrayNames(mt);
             }
         }
 
@@ -372,7 +379,7 @@ public class MethodTableCrawler {
         }
     }
 
-    private void assignSystemObjectNames(MethodTable objectMT, MessageLog log) throws Exception {
+    private void assignSystemObjectNames(MethodTable objectMT) throws Exception {
         objectMT.setName(Constants.SYSTEM_OBJECT_NAME);
 
         var objectVTableChunk = objectMT.getVTableChunks().iterator().next();
@@ -381,12 +388,26 @@ public class MethodTableCrawler {
         objectVTableChunk.getMethod(2).setName("GetHashCode");
     }
 
-    private void assignSystemStringNames(MethodTable stringMT, MessageLog log) throws Exception {
+    private void assignSystemStringNames(MethodTable stringMT) throws Exception {
+        // https://github.com/dotnet/runtime/blob/50c020e4f0f03a801c137fca5ba7f0f052f3c7e9/src/coreclr/nativeaot/Runtime.Base/src/System/String.cs#L56
+
         stringMT.setName(Constants.SYSTEM_STRING_NAME);
+
         var instanceType = stringMT.getOrCreateInstanceType();
         instanceType.deleteAll();
         instanceType.add(new Pointer64DataType(stringMT.getOrCreateMTType()), "mt", null);
         instanceType.add(DWORD, "_length", null);
         instanceType.add(new ArrayDataType(WideChar16DataType.dataType, 0), "_firstChar", null);
+    }
+
+    private void assignSzArrayNames(MethodTable szArrayMT) throws Exception  {
+        // https://github.com/dotnet/runtime/blob/50c020e4f0f03a801c137fca5ba7f0f052f3c7e9/src/coreclr/nativeaot/Runtime.Base/src/System/Array.cs#L31
+
+        var instanceType = szArrayMT.getOrCreateInstanceType();
+        instanceType.deleteAll();
+        instanceType.add(new Pointer64DataType(szArrayMT.getOrCreateMTType()), "mt", null);
+        instanceType.add(DWORD, "Length", null);
+        instanceType.add(DWORD, "Padding", null);
+        instanceType.add(new ArrayDataType(ByteDataType.dataType, 0), "Data", null);
     }
 }

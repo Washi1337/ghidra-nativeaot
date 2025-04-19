@@ -2,10 +2,11 @@ package nativeaot.objectmodel;
 
 import ghidra.app.util.importer.MessageLog;
 import ghidra.program.model.address.Address;
-import ghidra.program.model.data.TerminatedUnicodeDataType;
+import ghidra.program.model.data.*;
 import ghidra.program.model.listing.Program;
 import ghidra.program.model.mem.MemoryAccessException;
 import ghidra.program.model.symbol.SourceType;
+import ghidra.util.Msg;
 import ghidra.util.exception.InvalidInputException;
 import ghidra.util.task.TaskMonitor;
 import nativeaot.Constants;
@@ -13,7 +14,10 @@ import nativeaot.rtr.ReadyToRunDirectory;
 import nativeaot.rtr.ReadyToRunSection;
 
 public class FrozenObjectAnnotator {
+    private static final int STRING_LENGTH_FIELD_OFFSET = 8;
+    private static final int ARRAY_LENGTH_FIELD_OFFSET = 8;
     private static final int MAX_STRING_LENGTH = 0x1_0000;
+    private static final int MAX_ARRAY_LENGTH = 0x1_0000;
 
     private final Program _program;
     private final MethodTableManager _manager;
@@ -54,7 +58,7 @@ public class FrozenObjectAnnotator {
         }
     }
 
-    private int annotateObjects(ReadyToRunSection section, Address[] pointerLocations, TaskMonitor monitor) throws Exception {
+    private int annotateObjects(ReadyToRunSection section, Address[] pointerLocations, TaskMonitor monitor) {
         var pointersInSection = section.getPointersInSection(pointerLocations);
         monitor.setIndeterminate(false);
         monitor.setProgress(0);
@@ -83,11 +87,13 @@ public class FrozenObjectAnnotator {
             boolean success = false;
             
             // Annotate object.
-            // TODO: Array and SzArray values.
+            // TODO: Array values.
             
-            if (mt.getAddress() == _manager.getStringMT().getAddress()) {
+            if (mt.getAddress().getOffset() == _manager.getStringMT().getAddress().getOffset()) {
                 success = annotateString(location);
-            } else if (mt.getElementType() == ElementType.CLASS || mt.getElementType() == ElementType.VALUETYPE) {
+            } else if (mt.isSzArray()) {
+                success = annotateSzArray(location, mt);
+            } else if (mt.isClass() || mt.isValueType()) {
                 success = annotateObject(location, mt);
             }
             
@@ -98,33 +104,97 @@ public class FrozenObjectAnnotator {
         return count;
     }
 
-    private boolean annotateString(Address location) throws Exception {
-        var instanceType = _manager.getStringMT().getOrCreateInstanceType();
+    private boolean annotateString(Address location) {
+        try {
+            var instanceType = _manager.getStringMT().getOrCreateInstanceType();
 
-        var memory = _program.getMemory();
-        var listing = _program.getListing();
-        var symbolTable = _program.getSymbolTable();
+            var memory = _program.getMemory();
+            var listing = _program.getListing();
+            var symbolTable = _program.getSymbolTable();
 
-        // Check if the length makes any sense.
-        var length = memory.getInt(location.add(8));
-        if (length <= 0 || length >= MAX_STRING_LENGTH) {
+            // Check if the length makes any sense.
+            int length = memory.getInt(location.add(STRING_LENGTH_FIELD_OFFSET));
+            if (length < 0 || length >= MAX_STRING_LENGTH) {
+                throw new Exception("String size %d exceeded max size %d".formatted(length, MAX_STRING_LENGTH));
+            }
+
+            // Verify there is a zero-terminator.
+            var stringStart = location.add(instanceType.getLength());
+            var stringEnd = stringStart.add(length * 2);
+            if (memory.getByte(stringEnd) != 0) {
+                throw new Exception("No zero-terminator found at supposed string end %s".formatted(stringEnd));
+            }
+
+            // Replace any annotations with the string annotation.
+            listing.clearCodeUnits(location, stringEnd, true);
+            listing.createData(location, instanceType);
+
+            String literalName = length > 0
+                ? listing.createData(location.add(instanceType.getLength()), TerminatedUnicodeDataType.dataType).getPathName()
+                : "String_Empty_%s".formatted(location);
+
+            symbolTable.createLabel(location, "dn_%s".formatted(literalName), SourceType.ANALYSIS);
+
+            return true;
+        } catch (Exception ex) {
+            Msg.error(Constants.TAG, "Failed to create string literal at %s".formatted(location), ex);
+            return false;
+        }
+    }
+
+    private boolean annotateSzArray(Address location, MethodTable mt) {
+        var elementType = mt.getRelatedType();
+        if (elementType == null) {
             return false;
         }
 
-        // Verify there is a zero-terminator.
-        var stringStart = location.add(instanceType.getLength());
-        var stringEnd = stringStart.add(length * 2);
-        if (memory.getByte(stringEnd) != 0) {
+        try {
+            var instanceType = mt.getOrCreateInstanceType();
+
+            var memory = _program.getMemory();
+            var listing = _program.getListing();
+
+            // Check if the length makes any sense.
+            int length = memory.getInt(location.add(ARRAY_LENGTH_FIELD_OFFSET));
+            if (length < 0 || length >= MAX_ARRAY_LENGTH) {
+                throw new Exception("Array size %d exceeded max size %d".formatted(length, MAX_ARRAY_LENGTH));
+            }
+
+            var dataStart = location.add(instanceType.getLength());
+
+            // Replace object header.
+            listing.clearCodeUnits(location, dataStart, true);
+            listing.createData(location, instanceType);
+
+            // Set array data.
+            if (length > 0) {
+                // Determine element type to use for the inline array.
+                var elementInstanceType = switch (elementType.getElementType()) {
+                    case ElementType.BOOLEAN -> BooleanDataType.dataType;
+                    case ElementType.CHAR -> WideChar16DataType .dataType;
+                    case ElementType.SBYTE -> SignedByteDataType.dataType;
+                    case ElementType.BYTE -> ByteDataType.dataType;
+                    case ElementType.INT16 -> ShortDataType.dataType;
+                    case ElementType.UINT16 -> UnsignedShortDataType.dataType;
+                    case ElementType.INT32 -> IntegerDataType.dataType;
+                    case ElementType.UINT32 -> UnsignedIntegerDataType.dataType;
+                    case ElementType.INT64 -> LongLongDataType.dataType;
+                    case ElementType.UINT64 -> UnsignedLongLongDataType.dataType;
+                    case ElementType.INTPTR, ElementType.UINTPTR -> Pointer64DataType.dataType; // TODO: use program pointer type
+                    case ElementType.SINGLE -> FloatDataType.dataType;
+                    case ElementType.DOUBLE -> DoubleDataType.dataType;
+                    case ElementType.VALUETYPE -> throw new UnsupportedOperationException("Struct arrays not supported yet.");
+                    default -> elementType.getOrCreateInstanceType();
+                };
+
+                listing.createData(dataStart, new ArrayDataType(elementInstanceType, length));
+            }
+
+            return true;
+        } catch (Exception ex) {
+            Msg.error(Constants.TAG, "Failed to create SZ array at %s of type %s".formatted(location, mt), ex);
             return false;
         }
-
-        // Replace any annotations with the string annotation.
-        listing.clearCodeUnits(location, stringEnd, true);
-        listing.createData(location, instanceType);
-        var literal = listing.createData(location.add(instanceType.getLength()), TerminatedUnicodeDataType.dataType);
-        var name = "dn_" + literal.getPathName();
-        symbolTable.createLabel(location, name, SourceType.ANALYSIS);
-        return true;
     }
 
     private boolean annotateObject(Address location, MethodTable mt) {

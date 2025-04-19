@@ -81,12 +81,20 @@ public abstract class MethodTable {
         return getElementType() == ElementType.CLASS;
     }
 
-    public boolean isValueType() {
-        return ElementType.isValueType(getElementType());
+    public boolean isStruct() {
+        return getElementType() == ElementType.VALUETYPE;
     }
 
     public boolean isInterface() {
         return getElementType() == ElementType.INTERFACE;
+    }
+
+    public boolean isSzArray() {
+        return getElementType() == ElementType.SZARRAY;
+    }
+
+    public boolean isValueType() {
+        return ElementType.isValueType(getElementType());
     }
 
     public boolean isArrayInstance() {
