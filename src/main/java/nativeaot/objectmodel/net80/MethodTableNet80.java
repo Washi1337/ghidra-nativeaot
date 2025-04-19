@@ -81,7 +81,7 @@ public class MethodTableNet80 extends MethodTable {
     
     @Override
     protected Structure constructMTType() throws Exception {
-		var result = new StructureDataType(getMTName(), 0);
+        var result = new StructureDataType(getMTName(), 0);
         result.setCategoryPath(Constants.CATEGORY_METHOD_TABLES);
         result.setDescription(getAddress().toString());
 

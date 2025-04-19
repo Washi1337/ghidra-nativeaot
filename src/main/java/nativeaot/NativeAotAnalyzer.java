@@ -46,86 +46,86 @@ import nativeaot.rtr.SymbolReadyToRunLocator;
  */
 public class NativeAotAnalyzer extends AbstractAnalyzer {
 
-	public static final String MARKUP_REHYDRATION_CODE = "Markup rehydration code";
+    public static final String MARKUP_REHYDRATION_CODE = "Markup rehydration code";
 
-	private boolean _markupRehydrationCode = false;
+    private boolean _markupRehydrationCode = false;
 
-	public NativeAotAnalyzer() {
-		super(
-			Constants.NAME,
-			"Analyzes binaries compiled using .NET Native AOT technology.",
-			AnalyzerType.BYTE_ANALYZER
-		);
-		setSupportsOneTimeAnalysis();
-		setPriority(AnalysisPriority.LOW_PRIORITY);
-	}
+    public NativeAotAnalyzer() {
+        super(
+            Constants.NAME,
+            "Analyzes binaries compiled using .NET Native AOT technology.",
+            AnalyzerType.BYTE_ANALYZER
+        );
+        setSupportsOneTimeAnalysis();
+        setPriority(AnalysisPriority.LOW_PRIORITY);
+    }
 
-	@Override
-	public boolean getDefaultEnablement(Program program) {
-		return false;
-	}
+    @Override
+    public boolean getDefaultEnablement(Program program) {
+        return false;
+    }
 
-	@Override
-	public boolean canAnalyze(Program program) {
-		// We currently only support x86-64.
-		if (!program.getLanguageID().getIdAsString().startsWith("x86:LE:64")) {
-			return false;
-		}
+    @Override
+    public boolean canAnalyze(Program program) {
+        // We currently only support x86-64.
+        if (!program.getLanguageID().getIdAsString().startsWith("x86:LE:64")) {
+            return false;
+        }
 
-		return true;
-	}
+        return true;
+    }
 
-	@Override
-	public void registerOptions(Options options, Program program) {
-		options.registerOption(
-			MARKUP_REHYDRATION_CODE,
-			false,
-			null,
-			"Label all opcodes in the program that is responsible for decompressing the hydrated metadata."
-		);
-	}
+    @Override
+    public void registerOptions(Options options, Program program) {
+        options.registerOption(
+            MARKUP_REHYDRATION_CODE,
+            false,
+            null,
+            "Label all opcodes in the program that is responsible for decompressing the hydrated metadata."
+        );
+    }
 
-	@Override
-	public void optionsChanged(Options options, Program program) {
-		_markupRehydrationCode = options.getBoolean(MARKUP_REHYDRATION_CODE, false);
-	}
+    @Override
+    public void optionsChanged(Options options, Program program) {
+        _markupRehydrationCode = options.getBoolean(MARKUP_REHYDRATION_CODE, false);
+    }
 
-	@Override
-	public boolean added(Program program, AddressSetView set, TaskMonitor monitor, MessageLog log)
-			throws CancelledException {
+    @Override
+    public boolean added(Program program, AddressSetView set, TaskMonitor monitor, MessageLog log)
+            throws CancelledException {
 
-		// TODO: make configurable which locator is used..
-		ReadyToRunLocator locator = new SymbolReadyToRunLocator();
+        // TODO: make configurable which locator is used..
+        ReadyToRunLocator locator = new SymbolReadyToRunLocator();
 
-		var moduleHeaders = locator.locateModules(program, monitor, log);
+        var moduleHeaders = locator.locateModules(program, monitor, log);
 
-		if (moduleHeaders.length == 0) {
-			log.appendMsg(Constants.TAG, String.format(
-				"Symbols `%s` or `%s` and `%s` not found.",
-				Constants.READY_TO_RUN_HEADER_SYMBOL_NAME,
-				Constants.READY_TO_RUN_MODULES_START_SYMBOL_NAME,
-				Constants.READY_TO_RUN_MODULES_END_SYMBOL_NAME
-			));
-			log.appendMsg(Constants.TAG, "A reference of these can be found as the second argument of the call to `StartupCodeHelpers__InitializeModules` in the main function.");
-			return false;
-		}
+        if (moduleHeaders.length == 0) {
+            log.appendMsg(Constants.TAG, String.format(
+                "Symbols `%s` or `%s` and `%s` not found.",
+                Constants.READY_TO_RUN_HEADER_SYMBOL_NAME,
+                Constants.READY_TO_RUN_MODULES_START_SYMBOL_NAME,
+                Constants.READY_TO_RUN_MODULES_END_SYMBOL_NAME
+            ));
+            log.appendMsg(Constants.TAG, "A reference of these can be found as the second argument of the call to `StartupCodeHelpers__InitializeModules` in the main function.");
+            return false;
+        }
 
-		// Process all modules.
+        // Process all modules.
         for (var moduleHeader : moduleHeaders) {
             if (moduleHeader.getOffset() == 0) {
                 continue;
             }
 
-			try {
-				processModule(program, moduleHeader, monitor, log);
-			} catch (Exception ex) {
-				log.appendMsg(Constants.TAG,"Failed to process module header " + moduleHeader);
-				log.appendException(ex);
-			}
+            try {
+                processModule(program, moduleHeader, monitor, log);
+            } catch (Exception ex) {
+                log.appendMsg(Constants.TAG,"Failed to process module header " + moduleHeader);
+                log.appendException(ex);
+            }
         }
 
-		return true;
-	}
+        return true;
+    }
 
     private void processModule(Program program, Address moduleHeader, TaskMonitor monitor, MessageLog log) throws Exception {
         ReadyToRunDirectory directory;
@@ -135,8 +135,8 @@ public class NativeAotAnalyzer extends AbstractAnalyzer {
             throw new Exception("Failed to read rtr directory.", ex);
         }
 
-		// NOTE: Method table managers should be changed if the file format changes per rtr version.
-		var manager = new MethodTableManagerNet80(program);
+        // NOTE: Method table managers should be changed if the file format changes per rtr version.
+        var manager = new MethodTableManagerNet80(program);
 
         PointerScanResult pointerScan;
 
@@ -147,9 +147,9 @@ public class NativeAotAnalyzer extends AbstractAnalyzer {
             throw new UnsupportedOperationException("No dehydrated data found. This is likely .NET 7.0 metadata which is not supported at the moment.");
         } else {
             try {
-				// NOTE: Metadata rehydrators should be changed if the file format changes per rtr version.
-				var rehydrator = new MetadataRehydratorNet80();
-				rehydrator.markupRehydrationCode(_markupRehydrationCode);
+                // NOTE: Metadata rehydrators should be changed if the file format changes per rtr version.
+                var rehydrator = new MetadataRehydratorNet80();
+                rehydrator.markupRehydrationCode(_markupRehydrationCode);
                 pointerScan = rehydrateData(program, section, rehydrator, monitor, log);
                 log.appendMsg(Constants.TAG, "Rehydrated " + pointerScan.getScanningRange());
             } catch (Exception ex) {
@@ -157,90 +157,66 @@ public class NativeAotAnalyzer extends AbstractAnalyzer {
             }
         }
 
-		// Find all method tables.
+        // Find all method tables.
         try {
             var crawler = new MethodTableCrawler(manager, program, pointerScan);
             crawler.analyze(monitor, log);
         } catch (Exception ex) {
-            throw new Exception("Method Table finding failed.", ex);
+            throw new Exception("Method Table crawling failed.", ex);
         }
 
-		// Annotate all frozen objects.
-		try {
-			var annotator = new FrozenObjectAnnotator(program, manager);
-			annotator.analyze(directory, pointerScan.getPointerLocations(), monitor, log);
-		}
-		catch (Exception ex) {
-			throw new Exception("String finding failed.", ex);
-		}
-        
-    }
-
-    private static Address[] getModuleHeaders(Program program) throws MemoryAccessException {
-        // TODO: don't depend on symbols.
-        var modulesStartSymbol = program.getSymbolTable().getSymbols("__modules_a");
-        var modulesEndSymbol = program.getSymbolTable().getSymbols("__modules_z");
-
-		if (!modulesStartSymbol.hasNext() || !modulesEndSymbol.hasNext()) {
-			throw new UnsupportedOperationException(
-				"The current implementation does not support automatically detecting the rtr module headers. "
-			);
-		}
-
-		var start = modulesStartSymbol.next().getAddress();
-		var end = modulesEndSymbol.next().getAddress();
-
-        int count = (int) (end.getOffset() - start.getOffset()) / 8;
-        var result = new Address[count];
-        for (int i = 0; i < count; i++) {
-            result[i] = start.getNewAddress(program.getMemory().getLong(start.add(i * 8)));
+        // Annotate all frozen objects.
+        try {
+            var annotator = new FrozenObjectAnnotator(program, manager);
+            annotator.analyze(directory, pointerScan.getPointerLocations(), monitor, log);
         }
-
-        return result;
+        catch (Exception ex) {
+            throw new Exception("Frozen object crawling failed.", ex);
+        }
     }
 
-	private ReadyToRunDirectory readRtrDirectory(Program program, Address moduleHeader) throws Exception {
-		var listing = program.getListing();
-		var symbolTable = program.getSymbolTable();
+    private ReadyToRunDirectory readRtrDirectory(Program program, Address moduleHeader) throws Exception {
+        var listing = program.getListing();
+        var symbolTable = program.getSymbolTable();
 
-		// Read the rtr directory.
-		var provider = new MemoryByteProvider(
-			program.getMemory(),
-			moduleHeader.getAddressSpace()
-		);
+        // Read the rtr directory.
+        var provider = new MemoryByteProvider(
+            program.getMemory(),
+            moduleHeader.getAddressSpace()
+        );
 
-		var reader = new BinaryReader(provider, true);
-		reader.setPointerIndex(moduleHeader.getOffset());
+        var reader = new BinaryReader(provider, true);
+        reader.setPointerIndex(moduleHeader.getOffset());
 
-		var directory = new ReadyToRunDirectory(reader);
+        var directory = new ReadyToRunDirectory(reader);
 
-		// Assign label and data type in listing.
-		var type = directory.toDataType();
-		listing.clearCodeUnits(moduleHeader, moduleHeader.add(type.getLength()), false);
-		listing.createData(moduleHeader, type);
-		symbolTable.createLabel(moduleHeader, Constants.READY_TO_RUN_HEADER_SYMBOL_NAME, SourceType.ANALYSIS);
+        // Assign label and data type in listing.
+        var type = directory.toDataType();
+        listing.clearCodeUnits(moduleHeader, moduleHeader.add(type.getLength()), false);
+        listing.createData(moduleHeader, type);
+        symbolTable.createLabel(moduleHeader, Constants.READY_TO_RUN_HEADER_SYMBOL_NAME, SourceType.ANALYSIS);
 
-		return directory;
-	}
-	
+        return directory;
+    }
+
     private PointerScanResult rehydrateData(Program program, ReadyToRunSection rehydratedData, MetadataRehydrator rehydrator, TaskMonitor monitor, MessageLog log) throws Exception {
-		var symbolTable = program.getSymbolTable();
-		
-		// Rehydrate.
+        var symbolTable = program.getSymbolTable();
+
+        // Rehydrate.
         var space = program.getAddressFactory().getDefaultAddressSpace();
         var start = space.getAddress(rehydratedData.getStart());
         var end = space.getAddress(rehydratedData.getEnd());
 
-		symbolTable.createLabel(start, Constants.DEHYDRATED_DATA_SYMBOL_NAME, SourceType.ANALYSIS);
+        symbolTable.createLabel(start, Constants.DEHYDRATED_DATA_SYMBOL_NAME, SourceType.ANALYSIS);
 
         var result = rehydrator.rehydrate(program, new AddressSet(start, end).getFirstRange(), monitor, log);
 
-		symbolTable.createLabel(
-			result.getScanningRange().getMinAddress(),
-			Constants.HYDRATED_DATA_SYMBOL_NAME,
-			SourceType.ANALYSIS
-		);
+        symbolTable.createLabel(
+            result.getScanningRange().getMinAddress(),
+            Constants.HYDRATED_DATA_SYMBOL_NAME,
+            SourceType.ANALYSIS
+        );
 
-		return result;
+        return result;
     }
 }

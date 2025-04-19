@@ -30,7 +30,7 @@ public class MetadataBrowserProvider extends ComponentProvider {
     public MetadataBrowserProvider(NativeAotPlugin plugin) {
         super(plugin.getTool(), "Native AOT Metadata", plugin.getName());
         _plugin = plugin;
-		setDefaultWindowPosition(WindowPosition.LEFT);
+        setDefaultWindowPosition(WindowPosition.LEFT);
 
         buildPanel();
         buildActions();

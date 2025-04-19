@@ -52,10 +52,11 @@ public class TypeNode extends AddressNode {
 
     @Override
     public Icon getIcon(boolean bln) {
-        return switch (_mt.getElementType()) {
+        int elementType = _mt.getElementType();
+        return switch (elementType) {
             case ElementType.INTERFACE -> INTERFACE_ICON;
             case ElementType.VALUETYPE -> STRUCT_ICON;
-            default -> CLASS_ICON;
+            default -> ElementType.isPrimitive(elementType) ? ENUM_ICON : CLASS_ICON;
         };
     }
 
@@ -90,7 +91,14 @@ public class TypeNode extends AddressNode {
 
         for (var chunk : _mt.getVTableChunks()) {
             for (var method : chunk.getMethods()) {
-                result.add(new MethodNode(_mt, method, _mt.getVTableSlot(method.getSlotIndex())));
+                var slotIndex = method.getSlotIndex();
+
+                // Safety check.
+                var address = slotIndex < _mt.getVTableSlotCount()
+                    ? _mt.getVTableSlot(slotIndex)
+                    : 0;
+
+                result.add(new MethodNode(_mt, method, address));
             }
         }
 

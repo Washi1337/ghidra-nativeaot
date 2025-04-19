@@ -31,62 +31,62 @@ import nativeaot.refactoring.*;
 
 //@formatter:off
 @PluginInfo(
-	status = PluginStatus.STABLE,
-	packageName = ExamplesPluginPackage.NAME,
-	category = PluginCategoryNames.EXAMPLES,
-	shortDescription = "Plugin short description goes here.",
-	description = "Plugin long description goes here."
+    status = PluginStatus.STABLE,
+    packageName = ExamplesPluginPackage.NAME,
+    category = PluginCategoryNames.ANALYSIS,
+    shortDescription = "Metadata Browser and Refactoring Engine for Native AOT Binaries",
+    description = "Metadata Browser and Refactoring Engine for Native AOT Binaries"
 )
 //@formatter:on
 public class NativeAotPlugin extends ProgramPlugin {
 
-	private final MetadataBrowserProvider _provider;
-	private final RefactorEngine _refactorEngine;
-	private final NativeAotOptionsManager _options;
+    private final MetadataBrowserProvider _provider;
+    private final RefactorEngine _refactorEngine;
+    private final NativeAotOptionsManager _options;
 
-	private MethodTableManager _manager;
+    private MethodTableManager _manager;
     private GoToService _goToService;
 
-	public NativeAotPlugin(PluginTool tool) {
-		super(tool);
+    public NativeAotPlugin(PluginTool tool) {
+        super(tool);
 
-		_provider = new MetadataBrowserProvider(this);
-		_options = new NativeAotOptionsManager(tool);
-		_refactorEngine = new RefactorEngine(tool, _options);
-	}
+        _provider = new MetadataBrowserProvider(this);
+        _options = new NativeAotOptionsManager(tool);
+        _refactorEngine = new RefactorEngine(tool, _options);
+    }
 
-	@Override
-	public void init() {
-		super.init();
+    @Override
+    public void init() {
+        super.init();
 
-		_goToService = tool.getService(GoToService.class);
-	}
-	
-	public void navigate(Address address) {
-		_goToService.goTo(address);
-	}
+        _goToService = tool.getService(GoToService.class);
+    }
 
-	@Override
-	protected void programActivated(Program program) {
-		_refactorEngine.suspend();
+    public void navigate(Address address) {
+        _goToService.goTo(address);
+    }
 
-		_manager = new MethodTableManagerNet80(program);
-		_refactorEngine.setManager(_manager);
+    @Override
+    protected void programActivated(Program program) {
+        _refactorEngine.suspend();
 
-		_manager.restoreFromDB();
-		_provider.rebuildTree();
+        _manager = new MethodTableManagerNet80(program);
+        _refactorEngine.setManager(_manager);
 
-		_refactorEngine.resume();
-	}
+        _manager.restoreFromDB();
+        _provider.rebuildTree();
 
-	@Override
-	protected void programDeactivated(Program program) {
-		_refactorEngine.setManager(null);
-		_manager = null;
-		_provider.rebuildTree();
-	}
+        _refactorEngine.resume();
+    }
 
-	public MethodTableManager getMainMethodTableManager() {
-		return _manager;
-	}
+    @Override
+    protected void programDeactivated(Program program) {
+        _refactorEngine.setManager(null);
+        _manager = null;
+        _provider.rebuildTree();
+    }
+
+    public MethodTableManager getMainMethodTableManager() {
+        return _manager;
+    }
 }

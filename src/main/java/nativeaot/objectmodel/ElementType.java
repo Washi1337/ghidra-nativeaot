@@ -33,4 +33,12 @@ public class ElementType {
     public static final int BYREF = 0x19;
     public static final int POINTER = 0x1A;
     public static final int FUNCTION_POINTER = 0x1B;
+
+    public static boolean isValueType(int elementType) {
+        return elementType >= VOID && elementType <= VALUETYPE;
+    }
+
+    public static boolean isPrimitive(int elementType) {
+        return elementType >= VOID && elementType <= DOUBLE;
+    }
 }

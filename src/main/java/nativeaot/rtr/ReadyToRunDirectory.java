@@ -75,23 +75,23 @@ public class ReadyToRunDirectory implements StructConverter {
 
     @Override
     public DataType toDataType() throws DuplicateNameException, IOException {
-		var row = new StructureDataType("ModuleInfoRow", 0);
-		row.add(DWORD, "Type", null);
-		row.add(DWORD, "Flags", null);
-		row.add(Pointer64DataType.dataType, "Start", null);
-		row.add(Pointer64DataType.dataType, "End", null);
-		row.setCategoryPath(Constants.CATEGORY_READYTORUN);
+        var row = new StructureDataType("ModuleInfoRow", 0);
+        row.add(DWORD, "Type", null);
+        row.add(DWORD, "Flags", null);
+        row.add(Pointer64DataType.dataType, "Start", null);
+        row.add(Pointer64DataType.dataType, "End", null);
+        row.setCategoryPath(Constants.CATEGORY_READYTORUN);
 
-		var result = new StructureDataType("ReadyToRunHeader", 0);
-		row.setCategoryPath(Constants.CATEGORY_READYTORUN);
+        var result = new StructureDataType("ReadyToRunHeader", 0);
+        row.setCategoryPath(Constants.CATEGORY_READYTORUN);
 
-		result.add(DWORD, "Signature", null);
-		result.add(WORD, "MajorVersion", null);
-		result.add(WORD, "MinorVersion", null);
-		result.add(DWORD, "Flags", null);
-		result.add(WORD, "NumberOfSections", null);
-		result.add(BYTE, "EntrySize", null);
-		result.add(BYTE, "EntryType", null);
+        result.add(DWORD, "Signature", null);
+        result.add(WORD, "MajorVersion", null);
+        result.add(WORD, "MinorVersion", null);
+        result.add(DWORD, "Flags", null);
+        result.add(WORD, "NumberOfSections", null);
+        result.add(BYTE, "EntrySize", null);
+        result.add(BYTE, "EntryType", null);
 
         result.add(new ArrayDataType(row, _sections.length), "Sections", null);
 

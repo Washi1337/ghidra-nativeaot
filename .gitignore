@@ -2,6 +2,7 @@
 bin/
 dist/
 
+gradle/
 .gradle/
 **/build/
 !src/**/build/

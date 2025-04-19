@@ -21,35 +21,35 @@ public class RefactorTableModel extends GDynamicColumnTableModel<Refactor, Objec
         _refactors = refactors;
     }
 
-	@Override
-	public Object getDataSource() {
-		return null;
-	}
+    @Override
+    public Object getDataSource() {
+        return null;
+    }
 
-	@Override
-	public boolean isCellEditable(int rowIndex, int columnIndex) {
+    @Override
+    public boolean isCellEditable(int rowIndex, int columnIndex) {
         return columnIndex == APPLY;
     }
 
-	@Override
-	public void setValueAt(Object aValue, int rowIndex, int columnIndex) {
-		if (columnIndex != APPLY) {
-			return;
-		}
+    @Override
+    public void setValueAt(Object aValue, int rowIndex, int columnIndex) {
+        if (columnIndex != APPLY) {
+            return;
+        }
 
         _refactors.get(rowIndex).setApply((boolean) aValue);
     }
 
     @Override
     protected TableColumnDescriptor<Refactor> createTableColumnDescriptor() {
-		TableColumnDescriptor<Refactor> descriptor = new TableColumnDescriptor<>();
+        TableColumnDescriptor<Refactor> descriptor = new TableColumnDescriptor<>();
 
-		descriptor.addVisibleColumn(new ApplyColumn());
-		descriptor.addVisibleColumn(new TypeColumn());
-		descriptor.addVisibleColumn(new OldNameColumn());
-		descriptor.addVisibleColumn(new NewNameColumn());
+        descriptor.addVisibleColumn(new ApplyColumn());
+        descriptor.addVisibleColumn(new TypeColumn());
+        descriptor.addVisibleColumn(new OldNameColumn());
+        descriptor.addVisibleColumn(new NewNameColumn());
 
-		return descriptor;
+        return descriptor;
     }
 
     @Override
