@@ -138,9 +138,11 @@ public class NativeAotAnalyzer extends AbstractAnalyzer {
         // NOTE: Method table managers should be changed if the file format changes per rtr version.
         var manager = new MethodTableManagerNet80(program);
 
-        PointerScanResult pointerScan;
+        // Restore first from DB to allow for the analyzer to be run multiple times.
+        manager.restoreFromDB();
 
         // Find the dehydrated section (.NET 8.0+).
+        PointerScanResult pointerScan;
         var section = directory.getSectionByType(ReadyToRunSection.DEHYDRATED_DATA);
         if (section == null) {
             // TODO: determine pointer scanning range for .NET 7.0 binaries.
