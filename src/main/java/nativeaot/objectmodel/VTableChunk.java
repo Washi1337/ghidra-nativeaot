@@ -81,7 +81,7 @@ public class VTableChunk {
     public Structure getOrCreateDataType() {
         var chunkType = getDataType();
 
-        if(!(chunkType instanceof Structure)) {
+        if(chunkType == null) {
             var program = getDirectParent().getManager().getProgram();
             var dtManager = program.getDataTypeManager();
 

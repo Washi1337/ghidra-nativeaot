@@ -18,4 +18,7 @@ public class Constants {
     public static final String FROZEN_SEGMENT_START_SYMBOL_NAME = "__FrozenSegmentStart";
 
     public static final int READY_TO_RUN_SIGNATURE = 0x00525452;
+
+    public static final String SYSTEM_OBJECT_NAME = "System_Object";
+    public static final String SYSTEM_STRING_NAME = "System_String";
 }

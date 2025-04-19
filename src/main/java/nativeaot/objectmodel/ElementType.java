@@ -41,4 +41,8 @@ public class ElementType {
     public static boolean isPrimitive(int elementType) {
         return elementType >= VOID && elementType <= DOUBLE;
     }
+
+    public static boolean isArrayInstance(int elementType) {
+        return elementType == ElementType.ARRAY || elementType == ElementType.SZARRAY;
+    }
 }

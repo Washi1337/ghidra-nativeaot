@@ -77,6 +77,22 @@ public abstract class MethodTable {
 
     public abstract int getElementType();
 
+    public boolean isClass() {
+        return getElementType() == ElementType.CLASS;
+    }
+
+    public boolean isValueType() {
+        return ElementType.isValueType(getElementType());
+    }
+
+    public boolean isInterface() {
+        return getElementType() == ElementType.INTERFACE;
+    }
+
+    public boolean isArrayInstance() {
+        return ElementType.isArrayInstance(getElementType());
+    }
+
     public abstract int getBaseSize();
 
     public abstract int getDataSize();
@@ -200,7 +216,7 @@ public abstract class MethodTable {
         assertHasClass();
         var instanceType = getInstanceType();
 
-        if (!(instanceType instanceof Structure)) {
+        if (instanceType == null) {
             var program = _manager.getProgram();
             var dtManager = program.getDataTypeManager();
 
@@ -212,7 +228,7 @@ public abstract class MethodTable {
             });
         }
 
-        return (Structure) instanceType;
+        return instanceType;
     }
 
     public VTableChunk getOwnVTableChunk() {
@@ -229,22 +245,29 @@ public abstract class MethodTable {
 
         var result = new ArrayList<VTableChunk>();
 
-        var vtable = getVTable();
-
         // If no slots, then there is nothing to do.
+        var vtable = getVTable();
         if (vtable.length == 0) {
             return result;
         }
 
+        // Determine direct parent type.
+        MethodTable baseType;
+        if (isArrayInstance()) {
+            // TODO: use System.Array base mt instead.
+            baseType = _manager.getObjectMT();
+        } else {
+            baseType = getRelatedType();
+        }
+
         // Embed all vtables of the parent type.
         int inheritedCount = 0;
-        var relatedType = getRelatedType();
-        if (relatedType != null) {
-            for (var chunk : relatedType.getVTableChunks()) {
+        if (baseType != null) {
+            for (var chunk : baseType.getVTableChunks()) {
                 result.add(chunk);
                 inheritedCount += chunk.size();
 
-                if (inheritedCount == vtable.length) {
+                if (inheritedCount >= vtable.length) {
                     break;
                 }
             }

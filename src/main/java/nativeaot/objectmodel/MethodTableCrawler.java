@@ -11,7 +11,6 @@ import ghidra.app.util.importer.MessageLog;
 import ghidra.program.database.function.OverlappingFunctionException;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.data.ArrayDataType;
-import ghidra.program.model.data.DataTypeConflictHandler;
 import ghidra.program.model.data.Pointer64DataType;
 import ghidra.program.model.data.WideChar16DataType;
 import ghidra.program.model.listing.Program;
@@ -161,8 +160,7 @@ public class MethodTableCrawler {
     private void findAllMTs(TaskMonitor monitor, MessageLog log) throws CancelledException {
         var scanningRange = _pointerScan.getScanningRange();
 
-        var unmatched = new ArrayList<Address>();
-        unmatched.addAll(Arrays.asList(_pointerScan.getPointerLocations()));
+        var unmatched = new ArrayList<>(Arrays.asList(_pointerScan.getPointerLocations()));
         var agenda = new ArrayList<Address>(unmatched.size());
 
         for (int pass = 1; pass < MAX_PASSES; pass++) {
@@ -211,22 +209,22 @@ public class MethodTableCrawler {
                     continue;
                 }
 
-                MethodTable table;
+                MethodTable mt;
                 try {
-                    table = getOrCreateMethodTable(current.subtract(RELATED_TYPE_OFFSET));
-                    table.setRelatedType(relatedType);
+                    mt = getOrCreateMethodTable(current.subtract(RELATED_TYPE_OFFSET));
+                    mt.setRelatedType(relatedType);
                 } catch (Exception ex) {
                     // This is not a valid method table.
                     continue;
                 }
 
-                for (var iface: table.getInterfaceAddresses()) {
+                for (var iface: mt.getInterfaceAddresses()) {
                     if (iface == 0) {
                         continue;
                     }
                     try {
                         var x = getOrCreateMethodTable(current.getNewAddress(iface));
-                        table.getInterfaces().add(x);
+                        mt.getInterfaces().add(x);
                     } catch (Exception ex) {
                         // This is not a valid method table.
                         continue;
@@ -375,7 +373,7 @@ public class MethodTableCrawler {
     }
 
     private void assignSystemObjectNames(MethodTable objectMT, MessageLog log) throws Exception {
-        objectMT.setName("System_Object");
+        objectMT.setName(Constants.SYSTEM_OBJECT_NAME);
 
         var objectVTableChunk = objectMT.getVTableChunks().iterator().next();
         objectVTableChunk.getMethod(0).setName("ToString");
@@ -384,7 +382,7 @@ public class MethodTableCrawler {
     }
 
     private void assignSystemStringNames(MethodTable stringMT, MessageLog log) throws Exception {
-        stringMT.setName("System_String");
+        stringMT.setName(Constants.SYSTEM_STRING_NAME);
         var instanceType = stringMT.getOrCreateInstanceType();
         instanceType.deleteAll();
         instanceType.add(new Pointer64DataType(stringMT.getOrCreateMTType()), "mt", null);

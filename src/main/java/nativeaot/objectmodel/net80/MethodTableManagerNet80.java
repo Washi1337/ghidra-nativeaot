@@ -55,6 +55,11 @@ public class MethodTableManagerNet80 extends MethodTableManager {
             }
 
             registerMT(mt);
+
+            switch (name) {
+                case Constants.SYSTEM_OBJECT_NAME -> setObjectMT(mt);
+                case Constants.SYSTEM_STRING_NAME -> setStringMT(mt);
+            }
         }
 
         // Rebuild type inheritance graph.
