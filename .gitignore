@@ -1,7 +1,10 @@
+# IDE
 .idea/
+.vscode/
+
+# Build system
 bin/
 dist/
-
 gradle/
 .gradle/
 **/build/
