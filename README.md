@@ -87,9 +87,7 @@ Once you have this data with the label  `__ReadyToRunHeader`, you can use the an
 
 ## Development
 
-Any editor supporting Gradle should work, including IntelliJ and Visual Studio Code.
-
-For Visual Studio Code, some additional settings in the `.vscode` directory are put, pointing to the dependencies of the Ghidra dependencies. Adjust accordingly if you have Ghidra installed in another location.
+Any editor supporting Gradle should work, including Eclipse, IntelliJ and Visual Studio Code.
 
 For quickly reinstalling the plugin as well as starting ghidra, use a command like the following (change file paths accordingly):
 
