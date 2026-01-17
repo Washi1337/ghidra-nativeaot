@@ -145,8 +145,13 @@ public class NativeAotAnalyzer extends AbstractAnalyzer {
         PointerScanResult pointerScan;
         var section = directory.getSectionByType(ReadyToRunSection.DEHYDRATED_DATA);
         if (section == null) {
-            // TODO: determine pointer scanning range for .NET 7.0 binaries.
-            throw new UnsupportedOperationException("No dehydrated data found. This is likely .NET 7.0 metadata which is not supported at the moment.");
+            // Fallback for .NET 7.0 / 10.0+: Scan memory for pointers manually.
+            log.appendMsg(Constants.TAG, "No dehydrated data found. Attempting manual pointer scan.");
+            try {
+                pointerScan = scanForPointers(program, monitor, log);
+            } catch (Exception ex) {
+                throw new Exception("Manual scan failed.", ex);
+            }
         } else {
             try {
                 // NOTE: Metadata rehydrators should be changed if the file format changes per rtr version.
@@ -220,5 +225,66 @@ public class NativeAotAnalyzer extends AbstractAnalyzer {
         );
 
         return result;
+    }
+
+    private PointerScanResult scanForPointers(Program program, TaskMonitor monitor, MessageLog log) throws CancelledException {
+        var memory = program.getMemory();
+        var validAddresses = memory.getLoadedAndInitializedAddressSet();
+        var pointers = new java.util.ArrayList<Address>();
+        
+        // We need a single contiguous range for the crawler to validate if a pointer points "inside" the module.
+        // We use the min/max of the loaded image.
+        var scanningRange = new ghidra.program.model.address.AddressRangeImpl(
+            validAddresses.getMinAddress(), 
+            validAddresses.getMaxAddress()
+        );
+
+        monitor.setMessage(Constants.TAG + ": Scanning for pointers...");
+        monitor.setMaximum(validAddresses.getNumAddresses());
+        monitor.setProgress(0);
+
+        // Iterate over all initialized memory blocks
+        for (var block : memory.getBlocks()) {
+            if (!block.isInitialized()) continue;
+
+            var start = block.getStart();
+            var end = block.getEnd();
+            
+            // Align start to 8 bytes
+            long offset = start.getOffset();
+            if (offset % 8 != 0) {
+                start = start.add(8 - (offset % 8));
+            }
+
+            while (start.compareTo(end) <= 0) {
+                monitor.checkCancelled();
+                
+                // Read 64-bit value
+                try {
+                    long value = memory.getLong(start);
+                    
+                    // Simple heuristic: If the value is an address that exists in memory, it's a candidate pointer.
+                    // This includes pointers to code (VTable slots) and pointers to data (RelatedType, Interfaces).
+                    if (validAddresses.contains(start.getNewAddress(value))) {
+                        pointers.add(start);
+                    }
+                } catch (MemoryAccessException e) {
+                    // Ignore read errors
+                }
+                
+                try {
+                    start = start.add(8);
+                } catch(ghidra.program.model.address.AddressOutOfBoundsException e) {
+                    break; 
+                }
+            }
+        }
+
+        log.appendMsg(Constants.TAG, "Found " + pointers.size() + " candidate pointers.");
+        
+        return new PointerScanResult(
+            scanningRange,
+            pointers.toArray(Address[]::new)
+        );
     }
 }
