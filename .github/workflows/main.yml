@@ -17,7 +17,7 @@ jobs:
 
     steps:
       - name: Clone Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Install Java
         uses: actions/setup-java@v5
@@ -29,7 +29,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Install Ghidra ${{ matrix.ghidra }}
-        uses: antoniovazquezblanco/setup-ghidra@v2.0.14
+        uses: antoniovazquezblanco/setup-ghidra@v2.0.18
         with:
           auth_token: ${{ secrets.GITHUB_TOKEN }}
           version: ${{ matrix.ghidra }}
@@ -38,7 +38,7 @@ jobs:
         run: gradle buildExtension
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: NativeAOT_Ghidra_${{ matrix.ghidra }}
           path: dist/*.zip
@@ -52,7 +52,7 @@ jobs:
 
     steps:
       - name: Download binaries
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
 
       - name: Release
         uses: softprops/action-gh-release@v2
