@@ -10,6 +10,7 @@ jobs:
     strategy:
       matrix:
         ghidra:
+          - "12.0.1"
           - "12.0"
           - "11.4.3"
           - "11.4.2"
