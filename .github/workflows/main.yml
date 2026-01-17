@@ -16,32 +16,32 @@ jobs:
           - "11.2"
 
     steps:
-    - name: Clone Repository
-      uses: actions/checkout@v4
-  
-    - name: Install Java
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '21'
+      - name: Clone Repository
+        uses: actions/checkout@v5
 
-    - name: Install Gradle
-      uses: gradle/actions/setup-gradle@v4
+      - name: Install Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version: "21"
 
-    - name: Install Ghidra ${{ matrix.ghidra }}
-      uses: antoniovazquezblanco/setup-ghidra@v2.0.12
-      with:
-        auth_token: ${{ secrets.GITHUB_TOKEN }}
-        version: ${{ matrix.ghidra }}
+      - name: Install Gradle
+        uses: gradle/actions/setup-gradle@v5
 
-    - name: Build
-      run: gradle buildExtension
+      - name: Install Ghidra ${{ matrix.ghidra }}
+        uses: antoniovazquezblanco/setup-ghidra@v2.0.14
+        with:
+          auth_token: ${{ secrets.GITHUB_TOKEN }}
+          version: ${{ matrix.ghidra }}
 
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: NativeAOT_Ghidra_${{ matrix.ghidra }}
-        path: dist/*.zip
+      - name: Build
+        run: gradle buildExtension
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: NativeAOT_Ghidra_${{ matrix.ghidra }}
+          path: dist/*.zip
 
   release:
     runs-on: ubuntu-latest
@@ -51,10 +51,10 @@ jobs:
       contents: write
 
     steps:
-    - name: Download binaries
-      uses: actions/download-artifact@v5
+      - name: Download binaries
+        uses: actions/download-artifact@v6
 
-    - name: Release
-      uses: softprops/action-gh-release@v2
-      with:
-        files: NativeAOT_Ghidra_*/*.zip
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: NativeAOT_Ghidra_*/*.zip
