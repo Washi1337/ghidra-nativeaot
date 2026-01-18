@@ -38,10 +38,7 @@ import nativeaot.objectmodel.net80.MethodTableManagerNet80;
 import nativeaot.rehydration.MetadataRehydrator;
 import nativeaot.rehydration.MetadataRehydratorNet80;
 import nativeaot.rehydration.PointerScanResult;
-import nativeaot.rtr.ReadyToRunDirectory;
-import nativeaot.rtr.ReadyToRunLocator;
-import nativeaot.rtr.ReadyToRunSection;
-import nativeaot.rtr.SymbolReadyToRunLocator;
+import nativeaot.rtr.*;
 
 /**
  * Provide class-level documentation that describes what this analyzer does.
@@ -49,6 +46,10 @@ import nativeaot.rtr.SymbolReadyToRunLocator;
 public class NativeAotAnalyzer extends AbstractAnalyzer {
 
     public static final String MARKUP_REHYDRATION_CODE = "Markup rehydration code";
+    private static final ReadyToRunLocator[] READY_TO_RUN_LOCATORS = new ReadyToRunLocator[] {
+        new SymbolReadyToRunLocator(),
+        new SignatureReadyToRunLocator(),
+    };
 
     private boolean _markupRehydrationCode = false;
 
@@ -93,14 +94,9 @@ public class NativeAotAnalyzer extends AbstractAnalyzer {
     }
 
     @Override
-    public boolean added(Program program, AddressSetView set, TaskMonitor monitor, MessageLog log)
-            throws CancelledException {
-
-        // TODO: make configurable which locator is used..
-        ReadyToRunLocator locator = new SymbolReadyToRunLocator();
-
-        var moduleHeaders = locator.locateModules(program, monitor, log);
-
+    public boolean added(Program program, AddressSetView set, TaskMonitor monitor, MessageLog log) throws CancelledException {
+        // Locate modules.
+        var moduleHeaders = locateModules(program, monitor, log);
         if (moduleHeaders.length == 0) {
             log.appendMsg(Constants.TAG, String.format(
                 "Symbols `%s` or `%s` and `%s` not found.",
@@ -129,16 +125,26 @@ public class NativeAotAnalyzer extends AbstractAnalyzer {
         return true;
     }
 
+    private Address[] locateModules(Program program, TaskMonitor monitor, MessageLog log) throws CancelledException {
+        for (var locator : READY_TO_RUN_LOCATORS) {
+            var moduleHeaders = locator.locateModules(program, monitor, log);
+            if (moduleHeaders.length > 0) {
+                return moduleHeaders;
+            }
+        }
+
+        return new Address[0];
+    }
+
     private void processModule(Program program, Address moduleHeader, TaskMonitor monitor, MessageLog log) throws Exception {
         ReadyToRunDirectory directory;
         try {
             directory = readRtrDirectory(program, moduleHeader);
         } catch (Exception ex) {
-            throw new Exception("Failed to read rtr directory.", ex);
+            throw new Exception("Failed to read RTR directory at %s.".formatted(moduleHeader), ex);
         }
 
-        // NOTE: Method table managers should be changed if the file format changes per rtr version.
-        var manager = new MethodTableManagerNet80(program);
+        var manager = createMethodTableManagerForDirectory(program, directory);
 
         // Restore first from DB to allow for the analyzer to be run multiple times.
         manager.restoreFromDB();
@@ -208,6 +214,11 @@ public class NativeAotAnalyzer extends AbstractAnalyzer {
         return directory;
     }
 
+    private static MethodTableManagerNet80 createMethodTableManagerForDirectory(Program program, ReadyToRunDirectory directory) {
+        // NOTE: Method table managers should be changed if the file format changes per RTR version.
+        return new MethodTableManagerNet80(program);
+    }
+
     private PointerScanResult rehydrateData(Program program, ReadyToRunSection rehydratedData, MetadataRehydrator rehydrator, TaskMonitor monitor, MessageLog log) throws Exception {
         var symbolTable = program.getSymbolTable();
 
@@ -241,10 +252,7 @@ public class NativeAotAnalyzer extends AbstractAnalyzer {
         }
         
         // We use the block containing the module header as the scanning range
-        var scanningRange = new AddressRangeImpl(
-            moduleBlock.getStart(), 
-            moduleBlock.getEnd()
-        );
+        var scanningRange = moduleBlock.getAddressRange();
 
         monitor.setMessage(Constants.TAG + ": Scanning for pointers...");
         monitor.setMaximum(moduleBlock.getSize());

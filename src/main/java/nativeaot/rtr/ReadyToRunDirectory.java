@@ -13,8 +13,8 @@ import ghidra.program.model.data.StructureDataType;
 import ghidra.util.exception.DuplicateNameException;
 import nativeaot.Constants;
 
-
 public class ReadyToRunDirectory implements StructConverter {
+    private static final byte EXPECTED_NUMBER_OF_SECTIONS_UPPER_BOUND = 0x50;
 
     private final short _majorVersion;
     private final short _minorVersion;
@@ -33,8 +33,8 @@ public class ReadyToRunDirectory implements StructConverter {
         byte entrySize = reader.readNextByte();
         byte entryType = reader.readNextByte();
 
-        if (sectionCount > 100) {
-            throw new IOException("Unexpected number of sections $d".formatted(sectionCount));
+        if (sectionCount > EXPECTED_NUMBER_OF_SECTIONS_UPPER_BOUND) {
+            throw new IOException("Unexpected number of sections %d".formatted(sectionCount));
         }
 
         _sections = new ReadyToRunSection[sectionCount];

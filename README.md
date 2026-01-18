@@ -57,15 +57,21 @@ Install the plugin using `File > Install Extensions` menu in the main project wi
 Steps:
 
 - Make sure you have the plugin installed (see [Building](#building) and [Installing](#installing)).
-- Make sure that you have the ReadyToRun directory annotated in your binary with the `__ReadyToRunHeader` label.
+- Open a .NET NativeAOT binary in the code browser.
+- Optionally, if symbols are stripped, locate and markup the ReadyToRun header with the name `__ReadyToRunHeader` (see below).
 - Run the Native AOT Analyzer (Either as a One-Shot Analysis or part of Auto-Analysis).
 - Open the Native AOT Metadata Browser from the Windows Menu.
 
 
-### How to Find the ReadyToRun Directory?
+## Locating the ReadyToRun Directory
 
 The ReadyToRun data directory is the root of all .NET Native AOT metadata.
-Currently, the plugin does not support automatically locating this, however, the directory is referenced in a call to `S_P_CoreLib_Internal_Runtime_CompilerHelpers_StartupCodeHelpers__InitializeModules` in `wmain`.
+As the directory is not a normal PE data directory specified in its header, the plugin tries to heuristically find it in the following manner:
+- First, it will prefer using symbols `__ReadyToRunHeader` or the symbol pair `__modules_a` and `__modules_z` which mark a list of directories.
+- If no valid headers are found at these symbol names, it will heuristically scan all non-executable memory blocks for a known pattern (i.e., the `RTR\0` signature and a few expected fields in its header).
+
+If you find that this process does not work for you (e.g., no matches or too many matches), the RTR directory list (i.e., `__modules_a`) is also referenced in the startup code of any NativeAOT binary.
+Specifically it is referenced as **the second argument** in a call to `S_P_CoreLib_Internal_Runtime_CompilerHelpers_StartupCodeHelpers__InitializeModules` in `wmain`.
 
 You can find this call by e.g., compiling a simple Hello World application using Native AOT with symbols, and using Ghidra's Version Tracking Tool to compare functions.
 
@@ -91,8 +97,14 @@ Any editor supporting Gradle should work, including Eclipse, IntelliJ and Visual
 
 For quickly reinstalling the plugin as well as starting ghidra, use a command like the following (change file paths accordingly):
 
+Linux (Bash):
 ```sh
-$ gradle && unzip -o dist/ghidra_11.3.1_PUBLIC_XXXXXXXX_ghidra-nativeaot.zip -d ~/.config/ghidra/ghidra_11.3.1_PUBLIC/Extensions/ && ghidra
+$ gradle && unzip -o dist/*.zip -d ~/.config/ghidra/ghidra_X.X_PUBLIC/Extensions/ && ghidra
+```
+
+Windows (Powershell):
+```pwsh
+gradle; Expand-Archive .\dist\*.zip -DestinationPath $env:APPDATA\ghidra\ghidra_X.X_PUBLIC\Extensions -Force; Z:\Path\To\Ghidra\ghidraRun.bat
 ```
 
 ## License

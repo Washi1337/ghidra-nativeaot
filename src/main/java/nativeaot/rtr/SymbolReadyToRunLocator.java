@@ -8,13 +8,14 @@ import ghidra.app.util.importer.MessageLog;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Program;
 import ghidra.program.model.mem.MemoryAccessException;
+import ghidra.util.exception.CancelledException;
 import ghidra.util.task.TaskMonitor;
 import nativeaot.Constants;
 
 public class SymbolReadyToRunLocator implements ReadyToRunLocator {
 
     @Override
-    public Address[] locateModules(Program program, TaskMonitor monitor, MessageLog log) {
+    public Address[] locateModules(Program program, TaskMonitor monitor, MessageLog log) throws CancelledException {
         var memory = program.getMemory();
         try {
             var candidates = findCandidates(program, monitor);
