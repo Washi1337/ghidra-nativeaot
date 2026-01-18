@@ -23,7 +23,6 @@ import ghidra.app.util.bin.MemoryByteProvider;
 import ghidra.app.util.importer.MessageLog;
 import ghidra.framework.options.Options;
 import ghidra.program.model.address.Address;
-import ghidra.program.model.address.AddressOutOfBoundsException;
 import ghidra.program.model.address.AddressRangeImpl;
 import ghidra.program.model.address.AddressSet;
 import ghidra.program.model.address.AddressSetView;
@@ -156,7 +155,7 @@ public class NativeAotAnalyzer extends AbstractAnalyzer {
             // Fallback for .NET 7.0 / 10.0+: Scan memory for pointers manually.
             log.appendMsg(Constants.TAG, "No dehydrated data found. Attempting manual pointer scan.");
             try {
-                pointerScan = scanForPointers(program, moduleHeader, monitor, log);
+                pointerScan = scanForPointers(program, monitor, log);
             } catch (Exception ex) {
                 throw new Exception("Manual scan failed.", ex);
             }
@@ -240,59 +239,61 @@ public class NativeAotAnalyzer extends AbstractAnalyzer {
         return result;
     }
 
-    private PointerScanResult scanForPointers(Program program, Address moduleHeader, TaskMonitor monitor, MessageLog log) throws CancelledException {
+    private PointerScanResult scanForPointers(Program program, TaskMonitor monitor, MessageLog log) throws CancelledException {
         var memory = program.getMemory();
         var validAddresses = memory.getLoadedAndInitializedAddressSet();
         var pointers = new java.util.ArrayList<Address>();
 
-        var moduleBlock = memory.getBlock(moduleHeader);
-        if (moduleBlock == null) {
-            log.appendMsg(Constants.TAG, "Could not find memory block for module header at " + moduleHeader);
-            return new PointerScanResult(new AddressRangeImpl(moduleHeader, moduleHeader), new Address[0]);
-        }
-        
-        // We use the block containing the module header as the scanning range
-        var scanningRange = moduleBlock.getAddressRange();
+        // We need a single contiguous range for the crawler to validate if a pointer points "inside" the module.
+        // We use the min/max of the loaded image.
+        var scanningRange = new AddressRangeImpl(
+            validAddresses.getMinAddress(), 
+            validAddresses.getMaxAddress()
+        );
 
         monitor.setMessage(Constants.TAG + ": Scanning for pointers...");
-        monitor.setMaximum(moduleBlock.getSize());
+        monitor.setMaximum(validAddresses.getNumAddresses());
         monitor.setProgress(0);
 
-        var start = moduleBlock.getStart();
-        var end = moduleBlock.getEnd();
+        // Iterate over all initialized memory blocks
+        for (var block : memory.getBlocks()) {
+            if (!block.isInitialized() || block.isExecute()) continue;
 
-        // Align start to 8 bytes
-        long offset = start.getOffset();
-        if (offset % 8 != 0) {
-            start = start.add(8 - (offset % 8));
-        }
-
-        while (start.compareTo(end) <= 0) {
-            monitor.checkCancelled();
-            monitor.setProgress(start.getOffset() - moduleBlock.getStart().getOffset());
+            var start = block.getStart();
+            var end = block.getEnd();
             
-            // Read 64-bit value
-            try {
-                long value = memory.getLong(start);
+            // Align start to 8 bytes
+            long offset = start.getOffset();
+            if (offset % 8 != 0) {
+                start = start.add(8 - (offset % 8));
+            }
+
+            while (start.compareTo(end) <= 0) {
+                monitor.checkCancelled();
                 
-                // Simple heuristic: If the value is an address that exists in memory, it's a candidate pointer.
-                // This includes pointers to code (VTable slots) and pointers to data (RelatedType, Interfaces).
-                if (validAddresses.contains(start.getNewAddress(value))) {
-                    pointers.add(start);
+                // Read 64-bit value
+                try {
+                    long value = memory.getLong(start);
+                    
+                    // Simple heuristic: If the value is an address that exists in memory, it's a candidate pointer.
+                    // This includes pointers to code (VTable slots) and pointers to data (RelatedType, Interfaces).
+                    if (validAddresses.contains(start.getNewAddress(value))) {
+                        pointers.add(start);
+                    }
+                } catch (MemoryAccessException e) {
+                    // Ignore read errors
                 }
-            } catch (MemoryAccessException e) {
-                // Ignore read errors
-            }
-            
-            try {
-                start = start.add(8);
-            } catch(AddressOutOfBoundsException e) {
-                break; 
+                
+                try {
+                    start = start.add(8);
+                } catch(ghidra.program.model.address.AddressOutOfBoundsException e) {
+                    break; 
+                }
             }
         }
-        
-        log.appendMsg(Constants.TAG, "Found " + pointers.size() + " candidate pointers.");
 
+        log.appendMsg(Constants.TAG, "Found " + pointers.size() + " candidate pointers.");
+        
         return new PointerScanResult(
             scanningRange,
             pointers.toArray(Address[]::new)
