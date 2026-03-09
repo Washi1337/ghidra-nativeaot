@@ -45,7 +45,7 @@ jobs:
         run: gradle buildExtension
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: NativeAOT_Ghidra_${{ matrix.ghidra }}
           path: dist/*.zip
@@ -59,7 +59,7 @@ jobs:
 
     steps:
       - name: Download binaries
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
 
       - name: Release
         uses: softprops/action-gh-release@v2
