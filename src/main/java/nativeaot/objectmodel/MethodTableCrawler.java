@@ -99,42 +99,74 @@ public class MethodTableCrawler {
         return getOrCreateMethodTable(candidates[0]);
     }
 
+    private boolean isLikelyCodePointer(long value) {
+        if (value == 0) {
+            return true;
+        }
+
+        var candidateAddress = _pointerScan.getScanningRange().getMinAddress().getNewAddress(value);
+        var block = _program.getMemory().getBlock(candidateAddress);
+        return block != null && block.isExecute();
+    }
+
     private Address[] findCandidateSystemObjectMTs(TaskMonitor monitor) throws Exception {
         // The System.Object method table has no base type, contains exactly 3 vtable slots (ToString, Equals, GetHashCode), 
         // does not reference interfaces, and sets flags to only ElementType.Class. This is a very specific signature
         // that we can use as a heuristic.
 
         var memory = _program.getMemory();
+        long[] candidateVTable = new long[4];
+
         var result = new ArrayList<Address>();
 
         var locations = _pointerScan.getPointerLocations();
         for (int i = 0; i < locations.length - 3; i++) {
             monitor.checkCancelled();
 
-            // We're trying to match bytes relative to the pointer to Object.ToString in the vtable.
-            long offset = locations[i].getOffset();
-
-            // Check if there are at least two subsequent pointers (Equals, GetHashCode).
-            if (offset + 0x08 != locations[i + 1].getOffset()
-                || offset + 0x10 != locations[i + 2].getOffset()
-                || offset + 0x18 == locations[i + 3].getOffset()) {
-                continue;
-            }
-
             // TODO: The following offsets are .NET 8.0 specific which should probably be abstracted away.
+
+            // We're trying to match bytes relative to the pointer to Object.ToString in the vtable, as the
+            // Object.ToString pointer is very likely to be present in all binaries:
+            //  dOff    Type      Expected value                Descr
+            //  -0x18   ddw       50000000h                     uFlags (== CLASS)
+            //  -0x14   ddw       18h                           uBaseSize
+            //  -0x10   addr      00000000                      relatedType
+            //  -0x08   dw        3h                            usNumVtableSlots
+            //  -0x06   dw        0h                            usNumInterfaces
+            //  -0x04   ddw       ????????h                     uHashCode
+            //  +0x00   addr      &System_Object::ToString      VTable[0]
+            //  +0x04   addr      &System_Object::Equals        VTable[1]
+            //  +0x08   addr      &System_Object::GetHashCode   VTable[2]
+            //  +0x10   ??        <not a pointer>               ??
             try {
-                // Check 3 vtable slots.
+                // Check if there are at least two subsequent pointers (Equals, GetHashCode) followed by a non-pointer.
+                // Note that we cannot use locations[i+1] etc. here because some vtable entries may be 0 if the method
+                // was trimmed away (e.g., this happens  with smaller binaries that do not use Object.Equals)
+                memory.getLongs(locations[i], candidateVTable);
+                if (!(isLikelyCodePointer(candidateVTable[0])
+                        && isLikelyCodePointer(candidateVTable[1])
+                        && isLikelyCodePointer(candidateVTable[2])
+                        && !isLikelyCodePointer(candidateVTable[3]))) {
+                    continue;
+                }
+
+                // Check vtable slot count == 3.
                 if (memory.getShort(locations[i].subtract(0x08)) != 3) {
                     continue;
                 }
 
-                // Check 0 interfaces.
+                // Check interface count == 3.
                 if (memory.getShort(locations[i].subtract(0x06)) != 0) {
                     continue;
                 }
 
                 // Check base type == 0 (no base type)
                 if (memory.getLong(locations[i].subtract(0x10)) != 0) {
+                    continue;
+                }
+
+                // Check base size == 0x18
+                if (memory.getInt(locations[i].subtract(0x14)) != 0x18) {
                     continue;
                 }
 

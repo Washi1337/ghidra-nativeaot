@@ -1,13 +1,22 @@
 version: 2
-updates:
-  - package-ecosystem: "github-actions"
-    directory: "/"
+
+multi-ecosystem-groups:
+  build-infrastructure:
     target-branch: "main"
     schedule:
       interval: "weekly"
 
-  - package-ecosystem: "gradle"
+updates:
+  - package-ecosystem: "github-actions"
     directory: "/"
-    target-branch: "main"
     schedule:
       interval: "weekly"
+    patterns: ["actions/*", "antoniovazquezblanco/*"]
+    multi-ecosystem-group: "build-infrastructure"
+
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    patterns: ["gradle/*"]
+    multi-ecosystem-group: "build-infrastructure"

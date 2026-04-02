@@ -23,6 +23,7 @@ import ghidra.app.util.bin.MemoryByteProvider;
 import ghidra.app.util.importer.MessageLog;
 import ghidra.framework.options.Options;
 import ghidra.program.model.address.Address;
+import ghidra.program.model.address.AddressRangeImpl;
 import ghidra.program.model.address.AddressSet;
 import ghidra.program.model.address.AddressSetView;
 import ghidra.program.model.listing.Program;
@@ -36,10 +37,7 @@ import nativeaot.objectmodel.net80.MethodTableManagerNet80;
 import nativeaot.rehydration.MetadataRehydrator;
 import nativeaot.rehydration.MetadataRehydratorNet80;
 import nativeaot.rehydration.PointerScanResult;
-import nativeaot.rtr.ReadyToRunDirectory;
-import nativeaot.rtr.ReadyToRunLocator;
-import nativeaot.rtr.ReadyToRunSection;
-import nativeaot.rtr.SymbolReadyToRunLocator;
+import nativeaot.rtr.*;
 
 /**
  * Provide class-level documentation that describes what this analyzer does.
@@ -47,6 +45,10 @@ import nativeaot.rtr.SymbolReadyToRunLocator;
 public class NativeAotAnalyzer extends AbstractAnalyzer {
 
     public static final String MARKUP_REHYDRATION_CODE = "Markup rehydration code";
+    private static final ReadyToRunLocator[] READY_TO_RUN_LOCATORS = new ReadyToRunLocator[] {
+        new SymbolReadyToRunLocator(),
+        new SignatureReadyToRunLocator(),
+    };
 
     private boolean _markupRehydrationCode = false;
 
@@ -91,14 +93,9 @@ public class NativeAotAnalyzer extends AbstractAnalyzer {
     }
 
     @Override
-    public boolean added(Program program, AddressSetView set, TaskMonitor monitor, MessageLog log)
-            throws CancelledException {
-
-        // TODO: make configurable which locator is used..
-        ReadyToRunLocator locator = new SymbolReadyToRunLocator();
-
-        var moduleHeaders = locator.locateModules(program, monitor, log);
-
+    public boolean added(Program program, AddressSetView set, TaskMonitor monitor, MessageLog log) throws CancelledException {
+        // Locate modules.
+        var moduleHeaders = locateModules(program, monitor, log);
         if (moduleHeaders.length == 0) {
             log.appendMsg(Constants.TAG, String.format(
                 "Symbols `%s` or `%s` and `%s` not found.",
@@ -127,16 +124,26 @@ public class NativeAotAnalyzer extends AbstractAnalyzer {
         return true;
     }
 
+    private Address[] locateModules(Program program, TaskMonitor monitor, MessageLog log) throws CancelledException {
+        for (var locator : READY_TO_RUN_LOCATORS) {
+            var moduleHeaders = locator.locateModules(program, monitor, log);
+            if (moduleHeaders.length > 0) {
+                return moduleHeaders;
+            }
+        }
+
+        return new Address[0];
+    }
+
     private void processModule(Program program, Address moduleHeader, TaskMonitor monitor, MessageLog log) throws Exception {
         ReadyToRunDirectory directory;
         try {
             directory = readRtrDirectory(program, moduleHeader);
         } catch (Exception ex) {
-            throw new Exception("Failed to read rtr directory.", ex);
+            throw new Exception("Failed to read RTR directory at %s.".formatted(moduleHeader), ex);
         }
 
-        // NOTE: Method table managers should be changed if the file format changes per rtr version.
-        var manager = new MethodTableManagerNet80(program);
+        var manager = createMethodTableManagerForDirectory(program, directory);
 
         // Restore first from DB to allow for the analyzer to be run multiple times.
         manager.restoreFromDB();
@@ -145,8 +152,13 @@ public class NativeAotAnalyzer extends AbstractAnalyzer {
         PointerScanResult pointerScan;
         var section = directory.getSectionByType(ReadyToRunSection.DEHYDRATED_DATA);
         if (section == null) {
-            // TODO: determine pointer scanning range for .NET 7.0 binaries.
-            throw new UnsupportedOperationException("No dehydrated data found. This is likely .NET 7.0 metadata which is not supported at the moment.");
+            // Fallback for .NET 7.0 / 10.0+: Scan memory for pointers manually.
+            log.appendMsg(Constants.TAG, "No dehydrated data found. Attempting manual pointer scan.");
+            try {
+                pointerScan = scanForPointers(program, monitor, log);
+            } catch (Exception ex) {
+                throw new Exception("Manual scan failed.", ex);
+            }
         } else {
             try {
                 // NOTE: Metadata rehydrators should be changed if the file format changes per rtr version.
@@ -201,6 +213,11 @@ public class NativeAotAnalyzer extends AbstractAnalyzer {
         return directory;
     }
 
+    private static MethodTableManagerNet80 createMethodTableManagerForDirectory(Program program, ReadyToRunDirectory directory) {
+        // NOTE: Method table managers should be changed if the file format changes per RTR version.
+        return new MethodTableManagerNet80(program);
+    }
+
     private PointerScanResult rehydrateData(Program program, ReadyToRunSection rehydratedData, MetadataRehydrator rehydrator, TaskMonitor monitor, MessageLog log) throws Exception {
         var symbolTable = program.getSymbolTable();
 
@@ -220,5 +237,66 @@ public class NativeAotAnalyzer extends AbstractAnalyzer {
         );
 
         return result;
+    }
+
+    private PointerScanResult scanForPointers(Program program, TaskMonitor monitor, MessageLog log) throws CancelledException {
+        var memory = program.getMemory();
+        var validAddresses = memory.getLoadedAndInitializedAddressSet();
+        var pointers = new java.util.ArrayList<Address>();
+
+        // We need a single contiguous range for the crawler to validate if a pointer points "inside" the module.
+        // We use the min/max of the loaded image.
+        var scanningRange = new AddressRangeImpl(
+            validAddresses.getMinAddress(), 
+            validAddresses.getMaxAddress()
+        );
+
+        monitor.setMessage(Constants.TAG + ": Scanning for pointers...");
+        monitor.setMaximum(validAddresses.getNumAddresses());
+        monitor.setProgress(0);
+
+        // Iterate over all initialized memory blocks
+        for (var block : memory.getBlocks()) {
+            if (!block.isInitialized() || block.isExecute()) continue;
+
+            var start = block.getStart();
+            var end = block.getEnd();
+            
+            // Align start to 8 bytes
+            long offset = start.getOffset();
+            if (offset % 8 != 0) {
+                start = start.add(8 - (offset % 8));
+            }
+
+            while (start.compareTo(end) <= 0) {
+                monitor.checkCancelled();
+                
+                // Read 64-bit value
+                try {
+                    long value = memory.getLong(start);
+                    
+                    // Simple heuristic: If the value is an address that exists in memory, it's a candidate pointer.
+                    // This includes pointers to code (VTable slots) and pointers to data (RelatedType, Interfaces).
+                    if (validAddresses.contains(start.getNewAddress(value))) {
+                        pointers.add(start);
+                    }
+                } catch (MemoryAccessException e) {
+                    // Ignore read errors
+                }
+                
+                try {
+                    start = start.add(8);
+                } catch(ghidra.program.model.address.AddressOutOfBoundsException e) {
+                    break; 
+                }
+            }
+        }
+
+        log.appendMsg(Constants.TAG, "Found " + pointers.size() + " candidate pointers.");
+        
+        return new PointerScanResult(
+            scanningRange,
+            pointers.toArray(Address[]::new)
+        );
     }
 }
