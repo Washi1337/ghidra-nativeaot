@@ -15,11 +15,6 @@ import resources.ResourceManager;
 
 public class TypeNode extends AddressNode {
 
-    private static final Icon CLASS_ICON = ResourceManager.loadImage("images/class.png");
-    private static final Icon INTERFACE_ICON = ResourceManager.loadImage("images/interface.png");
-    private static final Icon STRUCT_ICON = ResourceManager.loadImage("images/struct.png");
-    private static final Icon ENUM_ICON = ResourceManager.loadImage("images/enum.png");
-    private static final Icon ARRAY_ICON = ResourceManager.loadImage("images/array.png");
 
     private final MethodTable _mt;
 
@@ -55,11 +50,11 @@ public class TypeNode extends AddressNode {
     public Icon getIcon(boolean bln) {
         int elementType = _mt.getElementType();
         return switch (elementType) {
-            case ElementType.INTERFACE -> INTERFACE_ICON;
-            case ElementType.VALUETYPE -> STRUCT_ICON;
-            default -> ElementType.isPrimitive(elementType) ? ENUM_ICON
-                    : ElementType.isArrayInstance(elementType) ? ARRAY_ICON
-                    : CLASS_ICON;
+            case ElementType.INTERFACE -> MetadataBrowserIcon.INTERFACE_ICON;
+            case ElementType.VALUETYPE -> MetadataBrowserIcon.STRUCT_ICON;
+            default -> ElementType.isPrimitive(elementType) ? MetadataBrowserIcon.ENUM_ICON
+                    : ElementType.isArrayInstance(elementType) ? MetadataBrowserIcon.ARRAY_ICON
+                    : MetadataBrowserIcon.CLASS_ICON;
         };
     }
 
@@ -83,16 +78,15 @@ public class TypeNode extends AddressNode {
 
         var baseTypes = new GenericNode("Base Types");
         if (_mt.getRelatedType() != null) {
-            baseTypes.addNode(new GenericNode(_mt.getRelatedType().getName()));
+            baseTypes.addNode(new TypeReferenceNode(_mt.getRelatedType()));
         }
 
         for (var iface: _mt.getInterfaces()) {
-            baseTypes.addNode(new GenericNode(iface.getName()));
+            baseTypes.addNode(new TypeReferenceNode(iface));
         }
 
         result.add(baseTypes);
 
-        int x = 0;
         for (var chunk : _mt.getVTableChunks()) {
             for (var method : chunk.getMethods()) {
                 var slotIndex = method.getSlotIndex();
