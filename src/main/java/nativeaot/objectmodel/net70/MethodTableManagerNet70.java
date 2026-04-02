@@ -1,27 +1,23 @@
-
-package nativeaot.objectmodel.net80;
+package nativeaot.objectmodel.net70;
 
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Program;
 import ghidra.program.model.mem.MemoryAccessException;
-import ghidra.util.Msg;
 import ghidra.util.task.TaskMonitor;
-import nativeaot.Constants;
 import nativeaot.objectmodel.MethodTable;
 import nativeaot.objectmodel.MethodTableManager;
 import nativeaot.rehydration.PointerScanResult;
 
 import java.util.ArrayList;
 
-public class MethodTableManagerNet80 extends MethodTableManager {
-
-    public MethodTableManagerNet80(Program program) {
+public class MethodTableManagerNet70 extends MethodTableManager {
+    public MethodTableManagerNet70(Program program) {
         super(program);
     }
 
     @Override
     public MethodTable createMT(Address address) {
-        return new MethodTableNet80(this, address);
+        return new MethodTableNet70(this, address);
     }
 
     @Override
@@ -42,7 +38,8 @@ public class MethodTableManagerNet80 extends MethodTableManager {
             // We're trying to match bytes relative to the pointer to Object.ToString in the vtable, as the
             // Object.ToString pointer is very likely to be present in all binaries:
             //  dOff    Type      Expected value                Descr
-            //  -0x18   ddw       50000000h                     uFlags (== CLASS)
+            //  -0x18   dw        0000h                         usComponentSize
+            //  -0x16   dw        A100                          usFlags (== CLASS)
             //  -0x14   ddw       18h                           uBaseSize
             //  -0x10   addr      00000000                      relatedType
             //  -0x08   dw        3h                            usNumVtableSlots
@@ -84,8 +81,8 @@ public class MethodTableManagerNet80 extends MethodTableManager {
                     continue;
                 }
 
-                // Check flags for class bit only set.
-                if (memory.getInt(locations[i].subtract(0x18)) != 0x5000_0000) {
+                // Check flags and component size for class bit only set.
+                if (memory.getInt(locations[i].subtract(0x18)) != 0xA100_0000) {
                     continue;
                 }
             } catch (MemoryAccessException ex) {
@@ -97,5 +94,4 @@ public class MethodTableManagerNet80 extends MethodTableManager {
 
         return result.toArray(Address[]::new);
     }
-
 }

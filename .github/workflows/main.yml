@@ -11,28 +11,8 @@ jobs:
       matrix:
         ghidra:
           - "12.0.2"
-          - "11.4.3"
 
     steps:
-<<<<<<< HEAD
-    - name: Clone Repository
-      uses: actions/checkout@v5
-  
-    - name: Install Java
-      uses: actions/setup-java@v5
-      with:
-        distribution: 'temurin'
-        java-version: '21'
-
-    - name: Install Gradle
-      uses: gradle/actions/setup-gradle@v5
-
-    - name: Install Ghidra ${{ matrix.ghidra }}
-      uses: antoniovazquezblanco/setup-ghidra@v2.0.14
-      with:
-        auth_token: ${{ secrets.GITHUB_TOKEN }}
-        version: ${{ matrix.ghidra }}
-=======
       - name: Clone Repository
         uses: actions/checkout@v6
 
@@ -44,7 +24,6 @@ jobs:
 
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v5
->>>>>>> 52b3d70fa59ab5214a57ee956f22888ddd707c50
 
       - name: Install Ghidra ${{ matrix.ghidra }}
         uses: antoniovazquezblanco/setup-ghidra@v2.1.0
@@ -52,13 +31,6 @@ jobs:
           auth_token: ${{ secrets.GITHUB_TOKEN }}
           version: ${{ matrix.ghidra }}
 
-<<<<<<< HEAD
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v5
-      with:
-        name: NativeAOT_Ghidra_${{ matrix.ghidra }}
-        path: dist/*.zip
-=======
       - name: Build
         run: gradle buildExtension
 
@@ -67,7 +39,6 @@ jobs:
         with:
           name: NativeAOT_Ghidra_${{ matrix.ghidra }}
           path: dist/*.zip
->>>>>>> 52b3d70fa59ab5214a57ee956f22888ddd707c50
 
   release:
     runs-on: ubuntu-latest

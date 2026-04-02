@@ -73,7 +73,7 @@ public class MetadataBrowserProvider extends ComponentProvider {
                 .toolBarIcon(Icons.REFRESH_ICON)
                 .enabled(true)
                 .onAction(c -> {
-                    var manager = _plugin.getMainMethodTableManager();
+                    var manager = _plugin.getOrCreateMainMethodTableManager();
                     if (manager == null) {
                         return;
                     }
@@ -82,6 +82,7 @@ public class MetadataBrowserProvider extends ComponentProvider {
                     rebuildTree();
                 })
                 .buildAndInstallLocal(this);
+
         new ActionBuilder("Rename", _plugin.getName())
                 .enabled(true)
                 .withContext(Context.class)

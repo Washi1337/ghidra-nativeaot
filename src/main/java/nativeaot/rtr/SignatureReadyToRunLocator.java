@@ -12,6 +12,9 @@ import nativeaot.Constants;
 import java.util.ArrayList;
 
 public class SignatureReadyToRunLocator implements ReadyToRunLocator {
+
+    public static final SignatureReadyToRunLocator instance = new SignatureReadyToRunLocator();
+
     private static final byte EXPECTED_ENTRY_SIZE = 0x18;
     private static final byte EXPECTED_ENTRY_TYPE = 0x01;
     private static final byte EXPECTED_NUMBER_OF_SECTIONS_UPPER_BOUND = 0x50;

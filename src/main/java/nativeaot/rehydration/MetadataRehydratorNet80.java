@@ -13,6 +13,7 @@ import ghidra.program.model.address.AddressRange;
 import ghidra.program.model.address.AddressSet;
 import ghidra.program.model.address.AddressSpace;
 import ghidra.program.model.listing.CodeUnit;
+import ghidra.program.model.listing.CommentType;
 import ghidra.program.model.listing.Program;
 import ghidra.util.task.TaskMonitor;
 import nativeaot.Constants;
@@ -62,7 +63,7 @@ public class MetadataRehydratorNet80 extends MetadataRehydrator {
                 command.initFromReader(reader);
 
                 if (markupRehydrationCode()) {
-                    listing.setComment(space.getAddress(offset), CodeUnit.EOL_COMMENT, command.toString());
+                    listing.setComment(space.getAddress(offset), CommentType.EOL, command.toString());
                 }
 
                 // Simulate next command.
@@ -79,12 +80,12 @@ public class MetadataRehydratorNet80 extends MetadataRehydrator {
                     }
 
                     case DehydratedDataCommand.REL_PTR32_RELOC -> {
-                        var ptr = readRelPtr32(space, reader, fixupsStart.getOffset() + payload * 4);
+                        var ptr = readRelPtr32(space, reader, fixupsStart.getOffset() + payload * 4L);
                         writeRelPtr32(hydrated, ptr);
                     }
 
                     case DehydratedDataCommand.PTR_RELOC -> {
-                        var ptr = readRelPtr32(space, reader, fixupsStart.getOffset() + payload * 4);
+                        var ptr = readRelPtr32(space, reader, fixupsStart.getOffset() + payload * 4L);
                         pointerLocations.add(hydrationBase.add(hydrated.size()));
                         writeInt64(hydrated, ptr.getOffset());
                     }
@@ -157,7 +158,7 @@ public class MetadataRehydratorNet80 extends MetadataRehydrator {
         output.write((int) ((value >> 56) & 0xFF));
     }
 
-    class DehydratedDataCommand {
+    static class DehydratedDataCommand {
         public static final byte COPY = 0x00;
         public static final byte ZERO_FILL = 0x01;
         public static final byte REL_PTR32_RELOC = 0x02;

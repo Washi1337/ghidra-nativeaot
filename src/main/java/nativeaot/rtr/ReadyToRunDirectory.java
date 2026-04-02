@@ -5,11 +5,14 @@ import java.io.IOException;
 import java.util.Arrays;
 
 import ghidra.app.util.bin.BinaryReader;
+import ghidra.app.util.bin.MemoryByteProvider;
 import ghidra.app.util.bin.StructConverter;
+import ghidra.program.model.address.Address;
 import ghidra.program.model.data.ArrayDataType;
 import ghidra.program.model.data.DataType;
 import ghidra.program.model.data.Pointer64DataType;
 import ghidra.program.model.data.StructureDataType;
+import ghidra.program.model.listing.Program;
 import ghidra.util.exception.DuplicateNameException;
 import nativeaot.Constants;
 
@@ -41,6 +44,18 @@ public class ReadyToRunDirectory implements StructConverter {
         for (int i = 0; i < sectionCount; i++) {
             _sections[i] = new ReadyToRunSection(reader);
         }
+    }
+
+    public static ReadyToRunDirectory readAtAddress(Program program, Address address) throws IOException {
+        var provider = new MemoryByteProvider(
+            program.getMemory(),
+            address.getAddressSpace()
+        );
+
+        var reader = new BinaryReader(provider, true);
+        reader.setPointerIndex(address.getOffset());
+
+        return new ReadyToRunDirectory(reader);
     }
 
     public ReadyToRunSection[] getSections() {

@@ -33,6 +33,8 @@ import ghidra.util.exception.CancelledException;
 import ghidra.util.task.TaskMonitor;
 import nativeaot.objectmodel.FrozenObjectAnnotator;
 import nativeaot.objectmodel.MethodTableCrawler;
+import nativeaot.objectmodel.MethodTableManager;
+import nativeaot.objectmodel.net70.MethodTableManagerNet70;
 import nativeaot.objectmodel.net80.MethodTableManagerNet80;
 import nativeaot.rehydration.MetadataRehydrator;
 import nativeaot.rehydration.MetadataRehydratorNet80;
@@ -46,8 +48,8 @@ public class NativeAotAnalyzer extends AbstractAnalyzer {
 
     public static final String MARKUP_REHYDRATION_CODE = "Markup rehydration code";
     private static final ReadyToRunLocator[] READY_TO_RUN_LOCATORS = new ReadyToRunLocator[] {
-        new SymbolReadyToRunLocator(),
-        new SignatureReadyToRunLocator(),
+        SymbolReadyToRunLocator.instance,
+        SignatureReadyToRunLocator.instance,
     };
 
     private boolean _markupRehydrationCode = false;
@@ -143,7 +145,8 @@ public class NativeAotAnalyzer extends AbstractAnalyzer {
             throw new Exception("Failed to read RTR directory at %s.".formatted(moduleHeader), ex);
         }
 
-        var manager = createMethodTableManagerForDirectory(program, directory);
+        var manager = MethodTableManager.createForDirectory(program, directory);
+        log.appendMsg(Constants.TAG, "Using manager %s".formatted(manager.getClass()));
 
         // Restore first from DB to allow for the analyzer to be run multiple times.
         manager.restoreFromDB();
@@ -152,7 +155,7 @@ public class NativeAotAnalyzer extends AbstractAnalyzer {
         PointerScanResult pointerScan;
         var section = directory.getSectionByType(ReadyToRunSection.DEHYDRATED_DATA);
         if (section == null) {
-            // Fallback for .NET 7.0 / 10.0+: Scan memory for pointers manually.
+            // Fallback for .NET 7.0 / 10.0+ with dehydration disabled: Scan memory for pointers manually.
             log.appendMsg(Constants.TAG, "No dehydrated data found. Attempting manual pointer scan.");
             try {
                 pointerScan = scanForPointers(program, monitor, log);
@@ -190,32 +193,19 @@ public class NativeAotAnalyzer extends AbstractAnalyzer {
     }
 
     private ReadyToRunDirectory readRtrDirectory(Program program, Address moduleHeader) throws Exception {
+        // Read directory.
+        var directory = ReadyToRunDirectory.readAtAddress(program, moduleHeader);
+
+        // Assign label and data type in listing.
         var listing = program.getListing();
         var symbolTable = program.getSymbolTable();
 
-        // Read the rtr directory.
-        var provider = new MemoryByteProvider(
-            program.getMemory(),
-            moduleHeader.getAddressSpace()
-        );
-
-        var reader = new BinaryReader(provider, true);
-        reader.setPointerIndex(moduleHeader.getOffset());
-
-        var directory = new ReadyToRunDirectory(reader);
-
-        // Assign label and data type in listing.
         var type = directory.toDataType();
         listing.clearCodeUnits(moduleHeader, moduleHeader.add(type.getLength()), false);
         listing.createData(moduleHeader, type);
         symbolTable.createLabel(moduleHeader, Constants.READY_TO_RUN_HEADER_SYMBOL_NAME, SourceType.ANALYSIS);
 
         return directory;
-    }
-
-    private static MethodTableManagerNet80 createMethodTableManagerForDirectory(Program program, ReadyToRunDirectory directory) {
-        // NOTE: Method table managers should be changed if the file format changes per RTR version.
-        return new MethodTableManagerNet80(program);
     }
 
     private PointerScanResult rehydrateData(Program program, ReadyToRunSection rehydratedData, MetadataRehydrator rehydrator, TaskMonitor monitor, MessageLog log) throws Exception {

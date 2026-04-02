@@ -6,9 +6,7 @@ import java.util.HashSet;
 import java.util.List;
 
 import ghidra.program.model.address.Address;
-import ghidra.program.model.data.DataType;
-import ghidra.program.model.data.DataTypeConflictHandler;
-import ghidra.program.model.data.Structure;
+import ghidra.program.model.data.*;
 import ghidra.program.model.listing.Data;
 import ghidra.program.model.listing.GhidraClass;
 import ghidra.program.model.symbol.SourceType;
@@ -210,7 +208,18 @@ public abstract class MethodTable {
         return mtType;
     }
 
-    protected abstract Structure constructInstanceType() throws Exception;
+    protected Structure constructInstanceType() throws Exception {
+        var obj = new StructureDataType( getName(), 0);
+        obj.setCategoryPath(Constants.CATEGORY_NATIVEAOT);
+
+        // Add MT field.
+        obj.add(new Pointer64DataType(getOrCreateMTType()), "mt", null);
+
+        // TODO: Add other fields.
+        obj.growStructure(getDataSize());
+
+        return obj;
+    }
 
     public Structure getInstanceType() throws Exception {
         assertHasClass();
@@ -300,7 +309,54 @@ public abstract class MethodTable {
         _class = clazz;
     }
 
-    public abstract void commitToDB() throws Exception;
+    public void commitToDB() throws Exception {
+        assertHasClass();
+
+        var address = getAddress();
+        var program = getManager().getProgram();
+        var listing = program.getListing();
+        var symbolTable = program.getSymbolTable();
+        var mtDataType = getOrCreateMTType();
+
+        int transaction = program.startTransaction("Commit type %s".formatted(getName()));
+        boolean changed = false;
+        try {
+            // Ensure method table structure is assigned at address.
+            if (getMTData() == null) {
+                var data = listing.getDataAt(address);
+                if (data == null || !data.getDataType().getPathName().equals(mtDataType.getPathName())) {
+                    listing.clearCodeUnits(address, address.add(mtDataType.getLength()), true);
+                    data = listing.createData(address, mtDataType);
+                }
+                setMTData(data);
+                changed = true;
+            }
+
+            // Introduce symbol for MT if there's none yet.
+            if (getMTSymbol() == null) {
+                for (var symbol: symbolTable.getSymbols(address)) {
+                    if (symbol.getParentNamespace() == getGhidraClass()
+                            && symbol.getName().equals(VTABLE_SYMBOL_NAME)) {
+                        setMTSymbol(symbol);
+                        changed = true;
+                        break;
+                    }
+                }
+
+                if (getMTSymbol() == null) {
+                    setMTSymbol(symbolTable.createLabel(
+                            address,
+                            VTABLE_SYMBOL_NAME,
+                            getGhidraClass(),
+                            SourceType.ANALYSIS
+                    ));
+                    changed = true;
+                }
+            }
+        } finally {
+            program.endTransaction(transaction, changed);
+        }
+    }
 
     public abstract void initFromMemory() throws Exception;
 

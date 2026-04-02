@@ -24,10 +24,13 @@ import ghidra.framework.plugintool.PluginTool;
 import ghidra.framework.plugintool.util.PluginStatus;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.listing.Program;
+import ghidra.util.exception.CancelledException;
 import nativeaot.browser.MetadataBrowserProvider;
 import nativeaot.objectmodel.MethodTableManager;
 import nativeaot.objectmodel.net80.MethodTableManagerNet80;
 import nativeaot.refactoring.*;
+import nativeaot.rtr.ReadyToRunDirectory;
+import nativeaot.rtr.SymbolReadyToRunLocator;
 
 //@formatter:off
 @PluginInfo(
@@ -46,6 +49,7 @@ public class NativeAotPlugin extends ProgramPlugin {
 
     private MethodTableManager _manager;
     private GoToService _goToService;
+    private Program _program;
 
     public NativeAotPlugin(PluginTool tool) {
         super(tool);
@@ -68,25 +72,60 @@ public class NativeAotPlugin extends ProgramPlugin {
 
     @Override
     protected void programActivated(Program program) {
-        _refactorEngine.suspend();
-
-        _manager = new MethodTableManagerNet80(program);
-        _refactorEngine.setManager(_manager);
-
-        _manager.restoreFromDB();
-        _provider.rebuildTree();
-
-        _refactorEngine.resume();
+        _program = program;
+        tryInitMethodTableManager();
     }
 
     @Override
     protected void programDeactivated(Program program) {
         _refactorEngine.setManager(null);
         _manager = null;
+        _program = null;
         _provider.rebuildTree();
     }
 
     public MethodTableManager getMainMethodTableManager() {
         return _manager;
+    }
+
+    public MethodTableManager getOrCreateMainMethodTableManager() {
+        if (_manager == null && _program != null) {
+            tryInitMethodTableManager();
+        }
+
+        return _manager;
+    }
+
+    private void tryInitMethodTableManager() {
+        // Try locate RTR header.
+        Address[] candidates;
+        try {
+            candidates = SymbolReadyToRunLocator.instance.locateModules(_program, null, null);
+        } catch (CancelledException e) {
+            return;
+        }
+
+        if (candidates.length == 0) {
+            return;
+        }
+
+        // Try read RTR header.
+        ReadyToRunDirectory directory;
+        try {
+            directory = ReadyToRunDirectory.readAtAddress(_program, candidates[0]);
+        } catch (Exception ex) {
+            return;
+        }
+
+        // Update global manager and refactoring engine.
+        _refactorEngine.suspend();
+
+        _manager = MethodTableManager.createForDirectory(_program, directory);
+        _refactorEngine.setManager(_manager);
+
+        _manager.restoreFromDB();
+        _provider.rebuildTree();
+
+        _refactorEngine.resume();
     }
 }

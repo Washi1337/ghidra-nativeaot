@@ -1,33 +1,40 @@
-package nativeaot.objectmodel.net80;
+package nativeaot.objectmodel.net70;
 
 import ghidra.app.util.bin.BinaryReader;
 import ghidra.app.util.bin.MemoryByteProvider;
-import static ghidra.app.util.bin.StructConverter.DWORD;
-import static ghidra.app.util.bin.StructConverter.WORD;
 import ghidra.program.model.address.Address;
-import ghidra.program.model.data.*;
-import ghidra.program.model.listing.GhidraClass;
-import ghidra.program.model.symbol.SourceType;
+import ghidra.program.model.data.ArrayDataType;
+import ghidra.program.model.data.Pointer64DataType;
+import ghidra.program.model.data.Structure;
+import ghidra.program.model.data.StructureDataType;
 import nativeaot.Constants;
 import nativeaot.objectmodel.ElementType;
 import nativeaot.objectmodel.MethodTable;
 
-public class MethodTableNet80 extends MethodTable {
-    private static final int ELEMENT_TYPE_MASK = 0x7C000000;
-    private static final int ELEMENT_TYPE_SHIFT = 26;
+import static ghidra.app.util.bin.StructConverter.DWORD;
+import static ghidra.app.util.bin.StructConverter.WORD;
 
-    private int _flags;
+public class MethodTableNet70 extends MethodTable {
+    private static final int ELEMENT_TYPE_MASK = 0xf800;
+    private static final int ELEMENT_TYPE_SHIFT = 11;
+
+    private short _componentSize;
+    private short _flags;
     private int _baseSize;
     private long _relatedTypeAddress;
     private int _hashCode;
     private long[] _vtable;
     private long[] _interfaceSlots;
 
-    public MethodTableNet80(MethodTableManagerNet80 manager, Address address) {
+    public MethodTableNet70(MethodTableManagerNet70 manager, Address address) {
         super(manager, address);
     }
 
-    public int getFlags() {
+    public short getComponentSize() {
+        return _componentSize;
+    }
+
+    public short getFlags() {
         return _flags;
     }
 
@@ -43,7 +50,7 @@ public class MethodTableNet80 extends MethodTable {
 
     @Override
     public int getDataSize() {
-        return _baseSize 
+        return _baseSize
             - 0x8 /* obj header */
             - 0x8 /* mt */;
     }
@@ -51,10 +58,6 @@ public class MethodTableNet80 extends MethodTable {
     @Override
     public long getRelatedTypeAddress() {
         return _relatedTypeAddress;
-    }
-
-    public int getHashCode() {
-        return _hashCode;
     }
 
     @Override
@@ -76,15 +79,16 @@ public class MethodTableNet80 extends MethodTable {
     public long[] getInterfaceAddresses() {
         return _interfaceSlots;
     }
-    
+
     @Override
     protected Structure constructMTType() throws Exception {
         var result = new StructureDataType(getMTName(), 0);
         result.setCategoryPath(Constants.CATEGORY_METHOD_TABLES);
         result.setDescription(getAddress().toString());
 
-        // https://github.com/dotnet/runtime/blob/a3b2d40328be0be3f8dd43f0e5cc925b8827b044/src/coreclr/nativeaot/Runtime/inc/MethodTable.h#L104-L115
-        result.add(DWORD, "uFlags", null);
+        // https://github.com/dotnet/runtime/blob/b2dc37ba181a7fa4427e717eab819ba3543d0ae4/src/coreclr/nativeaot/Runtime/inc/MethodTable.h#L136-L142
+        result.add(WORD, "m_usComponentSize", null);
+        result.add(WORD, "uFlags", null);
         result.add(DWORD, "uBaseSize", null);
         result.add(Pointer64DataType.dataType, "relatedType", null);
         result.add(WORD, "usNumVtableSlots", null);
@@ -108,15 +112,16 @@ public class MethodTableNet80 extends MethodTable {
         var address = getAddress();
 
         var reader = new BinaryReader(
-            new MemoryByteProvider(
-                getManager().getProgram().getMemory(),
-                address.getAddressSpace()
-            ),
-            true
+                new MemoryByteProvider(
+                        getManager().getProgram().getMemory(),
+                        address.getAddressSpace()
+                ),
+                true
         );
         reader.setPointerIndex(address.getOffset());
 
-        _flags = reader.readNextInt();
+        _componentSize = reader.readNextShort();
+        _flags = reader.readNextShort();
         _baseSize = reader.readNextInt();
         _relatedTypeAddress = reader.readNextLong();
         int vtableSlotCount = reader.readNextShort();

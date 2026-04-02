@@ -14,13 +14,17 @@ import nativeaot.Constants;
 
 public class SymbolReadyToRunLocator implements ReadyToRunLocator {
 
+    public static final SymbolReadyToRunLocator instance = new SymbolReadyToRunLocator();
+
     @Override
     public Address[] locateModules(Program program, TaskMonitor monitor, MessageLog log) throws CancelledException {
         var memory = program.getMemory();
         try {
             var candidates = findCandidates(program, monitor);
             for (int i = 0; i < candidates.size(); i++) {
-                monitor.checkCancelled();
+                if (monitor != null)
+                    monitor.checkCancelled();
+
                 try {
                     int signature = memory.getInt(candidates.get(i));
                     if (signature != Constants.READY_TO_RUN_SIGNATURE) {
@@ -32,8 +36,11 @@ public class SymbolReadyToRunLocator implements ReadyToRunLocator {
             }
             return candidates.toArray(Address[]::new);
         } catch (Exception ex) {
-            log.appendMsg("Failed to locate RTR roots using symbols.");
-            log.appendException(ex);
+            if (monitor != null) {
+                log.appendMsg("Failed to locate RTR roots using symbols.");
+                log.appendException(ex);
+            }
+
             return new Address[0];
         }        
     }
@@ -67,7 +74,10 @@ public class SymbolReadyToRunLocator implements ReadyToRunLocator {
         int count = (int) ((end.getOffset() - start.getOffset()) / 8);
 
         for (int i = 0; i < count; i++) {
-            monitor.checkCancelled();
+            if (monitor != null) {
+                monitor.checkCancelled();
+            }
+
             try {
                 long raw = memory.getLong(start.add(i * 8L));
                 if (raw == 0) {
@@ -84,6 +94,4 @@ public class SymbolReadyToRunLocator implements ReadyToRunLocator {
 
         return candidates;
     }
-
-
 }
