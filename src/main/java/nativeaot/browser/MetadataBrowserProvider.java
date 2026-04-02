@@ -39,7 +39,7 @@ public class MetadataBrowserProvider extends ComponentProvider {
     private void buildPanel() {
         _panel = new JPanel(new BorderLayout());
 
-        _rootNode = new GenericNode("Types");
+        _rootNode = new GenericNode("Types", MetadataBrowserIcon.ROOT_TYPES_ICON);
 
         _tree = new GTree(_rootNode);
         _tree.addGTreeSelectionListener((GTreeSelectionEvent gtse) -> {

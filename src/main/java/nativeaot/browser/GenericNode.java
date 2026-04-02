@@ -9,9 +9,11 @@ import docking.widgets.tree.GTreeNode;
 
 class GenericNode extends GTreeNode {
     private final String _header;
+    private final Icon _icon;
 
-    public GenericNode(String header) {
+    public GenericNode(String header, Icon icon) {
         _header = header;
+        _icon = icon;
     }
 
     @Override
@@ -21,7 +23,7 @@ class GenericNode extends GTreeNode {
 
     @Override
     public Icon getIcon(boolean bln) {
-        return null;
+        return _icon;
     }
 
     @Override

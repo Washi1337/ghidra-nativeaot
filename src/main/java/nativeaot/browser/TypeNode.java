@@ -11,7 +11,6 @@ import ghidra.util.Msg;
 import nativeaot.Constants;
 import nativeaot.objectmodel.ElementType;
 import nativeaot.objectmodel.MethodTable;
-import resources.ResourceManager;
 
 public class TypeNode extends AddressNode {
 
@@ -76,7 +75,7 @@ public class TypeNode extends AddressNode {
     protected List<GTreeNode> generateChildren() {
         var result = new ArrayList<GTreeNode>();
 
-        var baseTypes = new GenericNode("Base Types");
+        var baseTypes = new GenericNode("Base Types", MetadataBrowserIcon.BASE_TYPES_ICON);
         if (_mt.getRelatedType() != null) {
             baseTypes.addNode(new TypeReferenceNode(_mt.getRelatedType()));
         }
