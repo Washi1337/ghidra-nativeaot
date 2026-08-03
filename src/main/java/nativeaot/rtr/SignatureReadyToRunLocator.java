@@ -74,7 +74,8 @@ public class SignatureReadyToRunLocator implements ReadyToRunLocator {
         // +0x0e    db        18h                     EntrySize
         // +0x0f    db        1h                      EntryType
 
-        return memory.getInt(address) == Constants.READY_TO_RUN_SIGNATURE
+        return (memory.getInt(address) == Constants.READY_TO_RUN_SIGNATURE
+                || memory.getInt(address) == Constants.READY_TO_RUN_SIGNATURE_LEGACY)
                 && memory.getByte(address.add(0x0C)) < EXPECTED_NUMBER_OF_SECTIONS_UPPER_BOUND
                 && memory.getByte(address.add(0x0E)) == EXPECTED_ENTRY_SIZE
                 && memory.getByte(address.add(0x0F)) == EXPECTED_ENTRY_TYPE;
