@@ -27,7 +27,7 @@ public class SymbolReadyToRunLocator implements ReadyToRunLocator {
 
                 try {
                     int signature = memory.getInt(candidates.get(i));
-                    if (signature != Constants.READY_TO_RUN_SIGNATURE) {
+                    if (signature != Constants.READY_TO_RUN_SIGNATURE && signature != Constants.READY_TO_RUN_SIGNATURE_LEGACY) {
                         candidates.remove(i);
                         i--;
                     }

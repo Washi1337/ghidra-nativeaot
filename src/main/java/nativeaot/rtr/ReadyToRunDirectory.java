@@ -25,8 +25,10 @@ public class ReadyToRunDirectory implements StructConverter {
     private final ReadyToRunSection[] _sections;
 
     public ReadyToRunDirectory(BinaryReader reader) throws IOException {
-        if (reader.readNextInt() != Constants.READY_TO_RUN_SIGNATURE) {
-            throw new IOException("Reader does not start with the magic RTR\0");
+        int signature = reader.readNextInt();
+        if (signature != Constants.READY_TO_RUN_SIGNATURE &&
+            signature != Constants.READY_TO_RUN_SIGNATURE_LEGACY) {
+            throw new IOException("Reader does not start with the expected magic");
         }
         _majorVersion = reader.readNextShort();
         _minorVersion = reader.readNextShort();
